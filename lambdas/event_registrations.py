@@ -17,6 +17,7 @@ import secrets
 from datetime import timedelta
 from typing import Optional
 
+import event_capabilities
 import event_model
 import event_pricing
 import form_engine
@@ -159,6 +160,9 @@ def hold_until(method: str, now) -> str:
 def register(*, event, tickets, form, body, member, methods, now, redirect_base="") -> tuple:
     """Create a registration. Returns (registration, created) — created is False for an idempotent replay."""
     check_registrable(event, member, now)
+    unavailable = event_capabilities.reject_unavailable_addons(event, body)
+    if unavailable:                       # UI hiding is not enough: the API refuses options the event does not offer
+        raise RegError(400, "Some options are not available for this event", unavailable, code="feature_disabled")
     eligible = event_pricing.is_member_price_eligible(member)
     lines, total, errors = event_pricing.quote(tickets, body.get("tickets"), eligible, now)
     if errors:
@@ -195,6 +199,8 @@ def register(*, event, tickets, form, body, member, methods, now, redirect_base=
         }
         if member and member.get("loggedIn"):
             reg["memberEmail"] = member["email"]
+            if member.get("sub"):
+                reg["accountSub"] = member["sub"]          # Cognito subject; guests never get one
             if member.get("memberId"):
                 reg["memberId"] = member["memberId"]
         if total:

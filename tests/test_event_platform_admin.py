@@ -137,6 +137,40 @@ class AccessTests(ApiTestCase):
         self.assertEqual(self.call("GET", "me", groups="EventManagers")[1]["roles"], ["event_manager"])
 
 
+class CapabilityAdminTests(ApiTestCase):
+    """Per-event capabilities through the admin API: persisted, validated, and unsupported add-ons refused."""
+
+    def test_capabilities_are_stored_when_valid(self):
+        event = self.create(capabilities={"entrySlots": {"enabled": False}, "seatReservation": {"enabled": False}})
+        self.assertEqual(event["capabilities"], {"seatReservation": {"enabled": False}, "entrySlots": {"enabled": False}})
+
+    def test_events_without_capabilities_stay_without(self):
+        self.assertNotIn("capabilities", self.create())
+
+    def test_enabling_an_addon_that_native_events_cannot_book_is_refused(self):
+        for key in ("seatReservation", "zoneUpgrade", "entrySlots", "celebrityDinner"):
+            status, body = self.call("POST", "events", {**BASE, "capabilities": {key: {"enabled": True}}})
+            self.assertEqual(status, 400, key)
+            self.assertIn(f"capabilities.{key}", body["fields"])
+        self.assertEqual(self.store.events, {})
+
+    def test_unknown_or_malformed_capabilities_are_refused(self):
+        for bad in ({"guestCheckout": {"enabled": True}}, {"entrySlots": True}, {"seatReservation": {"enabled": "yes"}}, "all", ["x"]):
+            self.assertEqual(self.call("POST", "events", {**BASE, "capabilities": bad})[0], 400, bad)
+
+    def test_update_applies_the_same_rules(self):
+        event = self.create()
+        body = {**BASE, "revision": event["revision"], "capabilities": {"zoneUpgrade": {"enabled": True}}}
+        status, resp = self.call("PUT", f"events/{event['eventId']}", body)
+        self.assertEqual(status, 400)
+        self.assertIn("capabilities.zoneUpgrade", resp["fields"])
+        body["capabilities"] = {"zoneUpgrade": {"enabled": False}}
+        self.assertEqual(self.call("PUT", f"events/{event['eventId']}", body)[0], 200)
+
+    def test_requires_an_admin_group(self):
+        self.assertEqual(self.call("POST", "events", {**BASE, "capabilities": {}}, groups="Other")[0], 403)
+
+
 class EventCrudTests(ApiTestCase):
     def test_create_defaults_form_and_audit(self):
         ev = self.create()

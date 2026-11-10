@@ -717,6 +717,8 @@ def reserve_entry_allocations(event_type: str, registration_id: str, attendee_co
     never ends up with only some of its passes.
     """
     event_config = get_event_config(event_type)
+    if event_config and not entry_slots_logic.is_entry_slots_enabled(normalize_event_info(event_config)):
+        raise ValueError("Entry slots are not available for this event.")
     registration = get_event_registration_settings(event_config) if event_config else {}
     window = sadhya_slot_window_status(registration)
     if window == "not_started":
@@ -1464,6 +1466,14 @@ def lambda_handler(event, context):
         if event_config.get("status") != "active":
             logger.info("Event '%s' is not active. Current status: %s", event_type, event_config.get("status"))
             return respond(400, {"error": f"Event '{event_type}' is not currently accepting registrations"}, origin)
+
+        # Entry slots are a per-event feature: refuse a slot request the event does not offer, whatever
+        # the client UI showed (eventInfo.entrySlots.enabled; missing = on, for existing events).
+        if (body.get("allocations") or str(body.get("slotId", "")).strip()) and not entry_slots_logic.is_entry_slots_enabled(
+            normalize_event_info(event_config)
+        ):
+            return respond(400, {"error": "Entry slots are not available for this event",
+                                 "code": "feature_disabled"}, origin)
 
         # Onam registrations use a dedicated, server-authoritative pricing flow.
         # Detected by the eventType or the presence of an Onam registrationOption.

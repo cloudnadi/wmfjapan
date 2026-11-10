@@ -19,6 +19,8 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Optional
 
+import event_capabilities
+
 JST = timezone(timedelta(hours=9))
 TIMEZONE_NAME = "Asia/Tokyo"
 
@@ -527,6 +529,8 @@ def validate_event(payload: dict) -> dict:
     if access.get("membersOnly") and access.get("guestsAllowed"):
         errors["access.guestsAllowed"] = "Members-only events cannot allow guests"
 
+    errors.update(event_capabilities.validate_input(payload.get("capabilities")))
+
     for section in design.get("sections") or []:
         if isinstance(section, dict) and len(str(section.get("content", ""))) > 20000:
             errors["design.sections"] = "A section's text is too long"
@@ -580,7 +584,7 @@ def validate_ticket_type(payload: dict) -> dict:
 # status endpoint (publishing has extra checks); everything else is server-owned.
 EDITABLE_EVENT_KEYS = ("slug", "title", "shortDescription", "longDescription", "category", "tags",
                        "startsAt", "endsAt", "registrationOpensAt", "registrationClosesAt", "capacity",
-                       "waitlistEnabled", "location", "design", "access", "emails")
+                       "waitlistEnabled", "location", "design", "access", "emails", "capabilities")
 _OPTIONAL_EVENT_KEYS = ("startsAt", "endsAt", "registrationOpensAt", "registrationClosesAt", "capacity")
 
 
@@ -629,6 +633,8 @@ def apply_event_edit(existing: dict, payload: dict, *, now: str = "") -> dict:
         "emails": merged.get("emails") or {},
         "updatedAt": now or now_iso(),
     })
+    if merged.get("capabilities") is not None:
+        item["capabilities"] = event_capabilities.clean_input(merged["capabilities"])
     for key in _OPTIONAL_EVENT_KEYS:
         if merged.get(key) in (None, ""):
             item.pop(key, None)            # DynamoDB keys/indexes must not hold empty values
@@ -718,6 +724,7 @@ def legacy_event_to_v2(item: dict) -> dict:
         "access": {"membersOnly": False, "guestsAllowed": False, "requireRenewalCover": True},
         "waitlistEnabled": False,
         "emails": {},
+        "capabilities": event_capabilities.from_legacy_event_info(info),
         "source": "legacy",
         "registrationMode": "legacy",
         "registrationPath": item.get("registrationPath"),

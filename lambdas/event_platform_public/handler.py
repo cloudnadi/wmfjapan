@@ -10,7 +10,7 @@ Public (no sign-in; guests allowed where the event allows it):
   GET  /registrations/{id}?token=                        the registrant's own registration (check-in token)
   POST /registrations/{id}/pay?token=                    (re)start payment
 
-Signed-in member (Authorization: registrant token from the OTP login):
+Signed-in account (Authorization: a Cognito attendee-pool ID token, or the legacy member OTP token):
   GET    /my/registrations
   GET    /my/registrations/{id}
   PUT    /my/registrations/{id}       edit answers (until registration closes)
@@ -29,6 +29,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
+import cognito_jwt
+import event_capabilities
 import event_mailer
 import event_members
 import event_model
@@ -53,6 +55,11 @@ RENEWAL_YEAR = os.environ.get("RENEWAL_MEMBERSHIP_YEAR", "2026-27")
 MEMBERSHIP_AS_OF = os.environ.get("MEMBERSHIP_AS_OF", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "").rstrip("/")
 UPLOADS_BUCKET = os.environ.get("ASSETS_BUCKET", "")
+# Attendee accounts live in their own Cognito user pool (never the admin pool: the admin API
+# treats every user of its pool as an administrator).
+ATTENDEE_POOL_ID = os.environ.get("ATTENDEE_USER_POOL_ID", "")
+ATTENDEE_CLIENT_ID = os.environ.get("ATTENDEE_APP_CLIENT_ID", "")
+ATTENDEE_REGION = os.environ.get("ATTENDEE_COGNITO_REGION") or os.environ.get("REGION", "ap-northeast-1")
 
 UPLOAD_TYPES = {"application/pdf": b"%PDF-", "image/jpeg": b"\xff\xd8\xff", "image/png": b"\x89PNG\r\n\x1a\n",
                 "image/webp": b"RIFF"}
@@ -63,6 +70,7 @@ LIMITS = {"register-ip": (10, 600), "register-email": (5, 3600), "upload-ip": (2
           "pay-ip": (20, 600), "lookup-ip": (60, 60)}
 
 _s3 = None
+_verifier = None
 
 
 class ApiError(Exception):
@@ -127,24 +135,53 @@ def verify_token(token: str) -> Optional[dict]:
         return None
 
 
+def verifier() -> "cognito_jwt.CognitoVerifier":
+    global _verifier
+    if _verifier is None:
+        _verifier = cognito_jwt.CognitoVerifier(ATTENDEE_REGION, ATTENDEE_POOL_ID, ATTENDEE_CLIENT_ID)
+    return _verifier
+
+
+def _identity_from_token(token: str, strict: bool) -> Optional[dict]:
+    """{email, sub?} for a valid Cognito ID token or legacy OTP token; None when it is not valid."""
+    if cognito_jwt.looks_like_jwt(token):
+        try:
+            claims = verifier().verify_id_token(token)
+        except cognito_jwt.TokenError as exc:
+            logger.info("rejected attendee token: %s", exc.code)      # reason code only, never the token
+            return None
+        identity = cognito_jwt.identity_from_claims(claims)
+        if identity is None and strict:
+            raise ApiError(401, "Please verify your email address before registering.", code="email_unverified")
+        return identity
+    payload = verify_token(token)
+    email = str((payload or {}).get("email", "")).strip().lower()
+    return {"email": email} if email else None
+
+
 def resolve_member(event, *, strict: bool) -> Optional[dict]:
-    """The signed-in member with their membership summary, or None for guests.
+    """The signed-in account with its membership summary, or None for guests.
 
     A token that is present but invalid is an error when `strict` (so nobody is silently registered
     as a guest at non-member prices because their session expired); otherwise it is ignored.
     """
     headers = {str(k).lower(): v for k, v in (event.get("headers") or {}).items()}
     token = headers.get("authorization", "").strip()
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
     if not token:
         return None
-    payload = verify_token(token)
-    email = str((payload or {}).get("email", "")).strip().lower()
-    if not email:
+    identity = _identity_from_token(token, strict)
+    if not identity:
         if strict:
             raise ApiError(401, "Your session has expired. Please sign in again.", code="session_expired")
         return None
-    member = event_members.membership_for_email(store, email, as_of=MEMBERSHIP_AS_OF, renewal_year=RENEWAL_YEAR)
+    member = event_members.membership_for_email(store, identity["email"], as_of=MEMBERSHIP_AS_OF, renewal_year=RENEWAL_YEAR)
     member.pop("known", None)
+    if identity.get("sub"):
+        member["sub"] = identity["sub"]
+        member["provider"] = "cognito"
+        member["name"] = member.get("name") or identity.get("name", "")
     return member
 
 
@@ -211,7 +248,8 @@ def listing_view(event: dict) -> dict:
                  "accentColor": (event.get("design") or {}).get("accentColor", ""),
                  "membersOnly": bool((event.get("access") or {}).get("membersOnly")),
                  "guestsAllowed": bool((event.get("access") or {}).get("guestsAllowed", True)) and not (event.get("access") or {}).get("membersOnly"),
-                 "legacyPath": event.get("registrationPath") if event.get("source") == "legacy" else None})
+                 "legacyPath": event.get("registrationPath") if event.get("source") == "legacy" else None,
+                 "source": event.get("source", "native"), "capabilities": event_capabilities.normalize(event)})
     return base
 
 
@@ -248,7 +286,8 @@ def event_page(event, tickets, form, counters, member, when) -> dict:
                          "renewUrl": decision["renewUrl"],
                          "waitlist": bool(availability["full"] and event.get("waitlistEnabled"))},
         "viewer": {"loggedIn": bool(member), "email": (member or {}).get("email", ""), "name": (member or {}).get("name", ""),
-                   "memberPricing": eligible, "system": viewer_system(member)},
+                   "memberPricing": eligible, "system": viewer_system(member),
+                   "provider": (member or {}).get("provider", "")},
         "paymentMethods": [{"key": m["key"], "label": m["label"]} for m in payment_methods().values()],
         "form": {"formId": form["formId"], "version": form["version"], "fields": event_model.ensure_core_fields(form["fields"])} if form else None,
     })

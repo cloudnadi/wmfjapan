@@ -25,6 +25,7 @@ from boto3.dynamodb.conditions import Key
 
 dynamodb = boto3.resource("dynamodb", region_name=os.environ.get("REGION"))
 ENTRY_SLOTS_TABLE = os.environ.get("ENTRY_SLOTS_TABLE", "")
+EVENTS_TABLE = os.environ.get("EVENTS_TABLE", "")
 
 
 def decimal_to_python(obj):
@@ -48,6 +49,22 @@ def respond(status: int, body: dict):
         "headers": cors_headers(),
         "body": json.dumps(body, default=decimal_to_python),
     }
+
+
+def entry_slots_enabled(event_type: str) -> bool:
+    """eventInfo.entrySlots.enabled for the event. Entry slots predate the switch, so missing means ON;
+    only an explicit false turns them off. (Same rule as entry_slots_logic.is_entry_slots_enabled.)"""
+    if not EVENTS_TABLE:
+        return True
+    item = dynamodb.Table(EVENTS_TABLE).get_item(Key={"eventType": event_type}).get("Item") or {}
+    info = item.get("eventInfo", {})
+    if isinstance(info, str):
+        try:
+            info = json.loads(info) if info.strip() else {}
+        except ValueError:
+            return True
+    block = info.get("entrySlots") if isinstance(info, dict) else None
+    return not (isinstance(block, dict) and block.get("enabled") is False)
 
 
 def now_iso() -> str:
@@ -121,6 +138,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     if not event_type:
         return respond(400, {"error": "eventType query parameter is required"})
+
+    try:
+        if not entry_slots_enabled(event_type):
+            return respond(200, {"eventType": event_type, "numberOfSeats": num_seats, "availableSlots": [],
+                                 "count": 0, "enabled": False})
+    except ClientError as exc:
+        print(f"Error reading entry slot setting for {event_type}: {exc}")
+        return respond(500, {"error": "Failed to fetch available slots"})
 
     # Fetch all slots for the event
     try:

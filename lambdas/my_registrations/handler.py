@@ -696,6 +696,15 @@ def change_my_registration_slot(registration_id: str, body: dict, email: str, or
     if not event_type:
         return respond(400, {"error": "Registration has no eventType"}, origin)
 
+    if EVENTS_TABLE:
+        try:
+            event_item = dynamodb.Table(EVENTS_TABLE).get_item(Key={"eventType": event_type}).get("Item") or {}
+        except ClientError:
+            logger.exception("Could not read entry slot setting for event=%s", event_type)
+            return respond(500, {"error": "Could not check this event's settings. Please try again."}, origin)
+        if not entry_slots_logic.is_entry_slots_enabled(event_item.get("eventInfo", {})):
+            return respond(400, {"error": "Entry slots are not available for this event", "code": "feature_disabled"}, origin)
+
     if str(existing.get("paymentStatus", "")).strip().lower() != "paid":
         return respond(
             403,

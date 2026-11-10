@@ -37,6 +37,22 @@ SLOT_RESERVATIONS_TABLE = os.environ.get("SLOT_RESERVATIONS_TABLE", "")
 ACTIVE_RESERVATION_STATUSES = {"CONFIRMED", "HELD"}
 
 
+def is_entry_slots_enabled(event_info) -> bool:
+    """Per-event switch: eventInfo.entrySlots.enabled.
+
+    Entry slots existed before they could be switched, so a missing/odd value means ON (existing
+    events keep working); only an explicit boolean false turns them off for the event. Accepts the
+    dict or the JSON string the events table sometimes stores.
+    """
+    if isinstance(event_info, str):
+        try:
+            event_info = json.loads(event_info) if event_info.strip() else {}
+        except ValueError:
+            return True
+    block = event_info.get("entrySlots") if isinstance(event_info, dict) else None
+    return not (isinstance(block, dict) and block.get("enabled") is False)
+
+
 def _is_conditional_check_failed(exc: ClientError) -> bool:
     return exc.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException"
 
