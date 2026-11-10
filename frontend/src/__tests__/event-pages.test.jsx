@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { FESTIVAL, makeEvent, makeListing } from "./fixtures";
+import { ADDON_FIXTURE, FESTIVAL, makeEvent, makeListing } from "./fixtures";
 
 vi.mock("../eventsApi", () => ({
   listPublicEvents: vi.fn(),
@@ -120,7 +120,6 @@ describe("event detail page", () => {
     ["closed", makeEvent({ status: "closed" }), /registration is closed/i, false],
     ["not open yet", makeEvent({ registration: { window: "not_open" }, registrationOpensAt: "2027-01-01T09:00:00+09:00" }), /registration opens/i, false],
     ["cancelled", makeEvent({ status: "cancelled" }), /has been cancelled/i, false],
-    ["registered somewhere else", makeEvent({ source: "legacy", tickets: [] }), /not available on this website/i, false],
   ])("%s: explains why and offers no register button", async (_name, event, message) => {
     await show(event);
     expect(screen.getByText(message)).toBeTruthy();
@@ -146,39 +145,47 @@ describe("event detail page", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Sample Gathering" })).toBeTruthy();
   });
 
-  it("members-only events point to membership, sign-in-required events to sign-in", async () => {
-    await show(makeEvent({ access: { membersOnly: true, guestsAllowed: false }, registration: { allowed: false, reason: "login_required" } }));
+  it("sign-in-required events point to sign-in", async () => {
+    await show(makeEvent({ access: { guestsAllowed: false }, capabilities: { guestCheckout: { enabled: false }, authentication: { required: true } },
+                           registration: { allowed: false, reason: "login_required" } }));
     expect(screen.getByRole("button", { name: /sign in to register/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /join or renew your membership/i })).toBeTruthy();
   });
 
-  describe("per-event add-ons (seat reservation, zone upgrade, entry slots, dinner)", () => {
-    const legacy = (caps) => makeEvent({ source: "legacy", tickets: [], capabilities: caps });
-    const labels = { seatReservation: "Seat reservation", zoneUpgrade: "Zone upgrade", entrySlots: "Entry slots", celebrityDinner: "Dinner" };
+  describe("per-event add-ons (seat reservation, zone upgrade, entry slots)", () => {
+    const withCaps = (caps) => makeEvent({ capabilities: caps, addons: ADDON_FIXTURE.addons });
+    const labels = { seatReservation: "Seat reservation", zoneUpgrade: "Zone upgrade", entrySlots: "Entry slots" };
 
-    it.each(Object.keys(labels))("%s appears only for an event that enables it", async (key) => {
-      const off = legacy({ seatReservation: { enabled: false }, zoneUpgrade: { enabled: false }, entrySlots: { enabled: false }, celebrityDinner: { enabled: false } });
-      await show(off, { legacy: true });
+    it.each(Object.keys(labels))("%s does not appear for an event that has it off", async (key) => {
+      await show(withCaps({ seatReservation: { enabled: false }, zoneUpgrade: { enabled: false }, entrySlots: { enabled: false } }));
       expect(screen.queryByText(labels[key])).toBeNull();
       expect(document.querySelector(`[data-addon="${key}"]`)).toBeNull();
     });
 
     it.each(Object.keys(labels))("%s is shown (and only it) when enabled", async (key) => {
-      await show(legacy({ [key]: { enabled: true } }), { legacy: true });
+      await show(withCaps({ [key]: { enabled: true } }));
       expect(document.querySelector(`[data-addon="${key}"]`)).toBeTruthy();
       expect(document.querySelectorAll("[data-addon]")).toHaveLength(1);
     });
 
-    it("an event record from before capabilities existed shows no add-ons (entry slots excepted for the original pipeline)", async () => {
-      const old = makeEvent({ capabilities: undefined });
+    it("shows what each enabled add-on offers, from live platform data", async () => {
+      await show(withCaps(ADDON_FIXTURE.capabilities));
+      const text = document.querySelector('[data-addon="entrySlots"]').textContent;
+      expect(text).toContain("Morning");
+      expect(document.querySelector('[data-addon="zoneUpgrade"]').textContent).toContain("VIP zone +¥500");
+      expect(document.querySelector('[data-addon="seatReservation"]').textContent).toContain("Front +¥700");
+    });
+
+    it("an event record from before add-ons existed shows none", async () => {
+      const old = makeEvent();
       delete old.capabilities;
+      delete old.addons;
       await show(old);
       expect(document.querySelectorAll("[data-addon]")).toHaveLength(0);
     });
 
-    it("a platform-native event never lists add-ons that are off", async () => {
+    it("an ordinary event never lists add-ons that are off", async () => {
       await show(FESTIVAL);
-      expect(screen.queryByText(/options for registered attendees/i)).toBeNull();
+      expect(screen.queryByText(/included options/i)).toBeNull();
     });
   });
 });

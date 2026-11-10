@@ -10,6 +10,7 @@ import {
 } from "./eventsApi";
 import { formatJpy, formatJst, t } from "./i18n";
 import QRCode from "qrcode";
+import { RegistrationAddons } from "./AddonsStep";
 
 function Qr({ value }) {
   const ref = useRef(null);
@@ -113,6 +114,7 @@ export default function MyEventRegistrations({ navigateTo }) {
                   <p className="pe-meta">{row.event?.startsAt ? formatJst(row.event.startsAt) : ""}</p>
                   <p>{t("pub.done.idLabel")}: <strong className="pe-id">{reg.registrationId}</strong></p>
                   <ul>{reg.tickets.map((l) => <li key={l.ticketTypeId}>{l.name} × {l.qty}</li>)}</ul>
+                  <RegistrationAddons reg={reg} />
                   <p>{t("pub.total")}: <strong>{formatJpy(reg.totalJpy)}</strong></p>
                   {row.qr && <Qr value={row.qr} />}
                   {reg.status === "pending_payment" && (

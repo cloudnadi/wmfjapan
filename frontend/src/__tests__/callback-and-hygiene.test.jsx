@@ -72,7 +72,7 @@ describe("repository hygiene", () => {
   it("the public site has no hard-coded Onam event, route, content or image", () => {
     const publicFiles = [
       "App.jsx", "HomePage.jsx", "EventsList.jsx", "EventPage.jsx", "EventRegister.jsx", "EventRegistered.jsx", "EventShell.jsx",
-      "MyEventRegistrations.jsx", "Navbar.jsx", "SiteFooter.jsx", "SignInPage.jsx", "pageMeta.js", "siteConfig.js", "AgmBanner.jsx",
+      "MyEventRegistrations.jsx", "Navbar.jsx", "SiteFooter.jsx", "SignInPage.jsx", "pageMeta.js", "siteConfig.js", "AddonsStep.jsx", "EventAddons.jsx",
     ].map((f) => join(SRC, f)).concat(files((f) => f.includes(`${join("src", "auth")}/`)));
     const offenders = publicFiles.filter((f) => /onam|aavani|sadhya|onam_2026/i.test(readFileSync(f, "utf8")));
     expect(offenders.map((f) => relative(ROOT, f))).toEqual([]);
@@ -85,7 +85,12 @@ describe("repository hygiene", () => {
   it("no route or event id for a specific event is hard-coded in the router", () => {
     const app = readFileSync(join(SRC, "App.jsx"), "utf8");
     expect(app).not.toMatch(/\/onam|EVENT_COMPLETED|UPCOMING_EVENTS/);
-    expect(readFileSync(join(SRC, "CelebrityDinnerSignup.jsx"), "utf8")).not.toMatch(/VITE_EVENT_TYPE|onam_2026/);
+  });
+
+  it("nothing about NPO membership, the AGM or the original registration pipeline is left in the app", () => {
+    const code = files((f) => /\.(jsx?|html)$/.test(f) && !f.includes("__tests__") && !f.endsWith("StaticPages.jsx"));
+    const offenders = code.filter((f) => /\bnpo\b|membership|memberPrice|nonMemberPrice|\bAGM\b|legacy|\/member\//i.test(readFileSync(f, "utf8")));
+    expect(offenders.map((f) => relative(ROOT, f))).toEqual([]);
   });
 
   it("is a single light theme matching the organisation site: no theme switch, no dark mode", () => {

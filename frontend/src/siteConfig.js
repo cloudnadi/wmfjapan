@@ -2,8 +2,8 @@
  * Organisation / site settings in one place, so nothing org-specific is scattered through the UI.
  * Every value can be overridden at build time with a VITE_* variable (see frontend/.env.example).
  *
- * Contact details and legal text are NOT invented here: `contactEmail` and `memberRegisterUrl` keep the
- * values the repository already shipped with and must be confirmed by WMF Japan (docs/WMF_EVENTS_SITE.md).
+ * Contact details and legal text are NOT invented here: `contactEmail` keeps the value the repository already
+ * shipped with and must be confirmed by WMF Japan (docs/WMF_EVENTS_SITE.md).
  */
 
 const env = import.meta.env;
@@ -19,11 +19,9 @@ export const siteConfig = {
   orgName: env.VITE_ORG_NAME || "WMF Japan",
   description:
     env.VITE_SITE_DESCRIPTION ||
-    "Find and register for WMF Japan events. Sign in for member pricing, or register as a guest.",
+    "Find and register for WMF Japan events. Sign in to manage your registrations, or register as a guest.",
   // PLACEHOLDER (pre-existing value): confirm with WMF Japan. Set to an empty string to hide contact links.
   contactEmail: env.VITE_CONTACT_EMAIL ?? "info@wmfjapan.com",
-  // PLACEHOLDER (pre-existing value): where people join the NPO membership.
-  memberRegisterUrl: env.VITE_MEMBER_REGISTER_URL || "https://www.wmfjapan.com/en/member/register",
   // No logo is bundled for the header: set VITE_LOGO_URL to the official WMF Japan logo to show it, otherwise a text
   // wordmark is used. public/logo.png and public/logo-sm.png are plain-text PLACEHOLDERS (used by e-mails, PDFs and link
   // previews): replace the files with the official artwork.

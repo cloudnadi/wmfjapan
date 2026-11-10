@@ -1,16 +1,14 @@
 // Public + account API for the event platform (/public/*). Always the real API.
 //
 // Identity: the attendee's Cognito ID token (sign-in via src/auth) is sent as the Authorization header.
-// The older member one-time-code token is still accepted by the API and used when it is all there is.
 // The server verifies whichever it gets; nothing here is trusted for access control.
 import { getIdToken, isSignedIn, signOut } from "./auth/session";
-import { getRegistrantToken, handleRegistrantUnauthorized } from "./registrantAuth";
 
 const apiBase = () => import.meta.env.VITE_API_BASE_URL;
 const enc = encodeURIComponent;
 
 async function currentToken(forceRefresh = false) {
-  return (await getIdToken({ forceRefresh })) || getRegistrantToken();
+  return getIdToken({ forceRefresh });
 }
 
 function sessionExpired() {
@@ -51,7 +49,6 @@ async function call(path, { method = "GET", body, auth = "optional", query } = {
   if (!response.ok) {
     if (response.status === 401 && data.code !== "email_unverified") {
       if (isSignedIn()) await signOut().catch(() => {});
-      handleRegistrantUnauthorized(401);
     }
     const err = new Error(data.error || "Request failed");
     err.status = response.status;

@@ -18,22 +18,31 @@ function Icon({ name }) {
 }
 
 function guestBadge(ev) {
-  if (ev.access?.membersOnly) return <span className="pe-pill pe-pill-accent">{t("pub.membersOnly")}</span>;
   if (!ev.capabilities.guestCheckout.enabled) return <span className="pe-pill pe-pill-accent">{t("pub.signInRequiredBadge")}</span>;
   return <span className="pe-pill">{t("pub.guestsWelcome")}</span>;
 }
 
-/** Add-ons this event offers, from its capabilities. Disabled ones are not rendered at all. */
-function AddonList({ ev, navigateTo }) {
+/** What the event offers beyond tickets, from its capabilities and live availability. Disabled add-ons are not rendered at all. */
+function AddonList({ ev }) {
   const enabled = ADDON_KEYS.filter((key) => ev.capabilities[key].enabled);
   if (enabled.length === 0) return null;
+  const info = ev.addons || {};
+  const detail = {
+    entrySlots: () => (info.entrySlots?.slots || []).map((x) => (x.remaining === 0 ? `${x.name} (${t("pub.soldOut")})` : x.name)).join(" · "),
+    zoneUpgrade: () => (info.zoneUpgrade?.upgrades || []).map((x) => `${x.name} +${formatJpy(x.priceJpy)}`).join(" · "),
+    seatReservation: () => (info.seatReservation?.sections || []).map((x) => (x.extraPriceJpy ? `${x.name} +${formatJpy(x.extraPriceJpy)}` : x.name)).join(" · "),
+  };
   return (
     <section aria-labelledby="pe-addons-h" className="pe-section pe-addons">
       <h2 id="pe-addons-h">{t("pub.addons.title")}</h2>
       <ul>
-        {enabled.map((key) => <li key={key} data-addon={key}>{t(`pub.addons.${key}`)}</li>)}
+        {enabled.map((key) => (
+          <li key={key} data-addon={key}>
+            <strong>{t(`pub.addons.${key}`)}</strong>
+            {detail[key]?.() ? <small className="pe-meta"> — {detail[key]()}</small> : null}
+          </li>
+        ))}
       </ul>
-      <button type="button" className="button secondary" onClick={() => navigateTo("/my/registrations")}>{t("pub.addons.manage")}</button>
     </section>
   );
 }
@@ -45,29 +54,17 @@ export function RegistrationBox({ ev, navigateTo }) {
   let body;
   if (state === "cancelled") {
     body = <p role="status">{t("pub.state.cancelled")}</p>;
-  } else if (state === "unavailable") {
-    body = <p role="status">{t("pub.state.registrationUnavailable")}</p>;
   } else if (state === "not_open") {
     body = <p>{t("pub.reg.opensAt", { when: ev.registrationOpensAt ? formatJst(ev.registrationOpensAt) : "" })}</p>;
   } else if (state === "closed") {
     body = <p role="status">{t("pub.registrationClosed")}</p>;
-  } else if (state === "members_only" || state === "renewal_required") {
-    body = (
-      <>
-        <p>{t(state === "members_only" ? "pub.reg.membersOnlyBlocked" : "pub.reg.renewalBlocked")}</p>
-        <button type="button" className="button primary" onClick={() => navigateTo("/member/membership")}>{t("pub.reg.renewNow")}</button>
-      </>
-    );
   } else if (state === "sold_out") {
     body = <p role="status">{t("pub.state.soldOut")}</p>;
   } else if (state === "sign_in_required") {
     body = (
       <>
-        <p>{t(ev.access.membersOnly ? "pub.reg.membersOnlySignIn" : "pub.reg.signInRequired")}</p>
+        <p>{t("pub.reg.signInRequired")}</p>
         <button type="button" className="button primary" onClick={go}>{t("pub.reg.signIn")}</button>
-        {ev.access.membersOnly && (
-          <button type="button" className="button secondary" onClick={() => navigateTo("/member/membership")}>{t("pub.reg.joinMembership")}</button>
-        )}
       </>
     );
   } else {
@@ -75,9 +72,6 @@ export function RegistrationBox({ ev, navigateTo }) {
       <>
         {r.waitlist && <p>{t("pub.reg.full")}</p>}
         <button type="button" className="button primary" onClick={go}>{t(r.waitlist ? "pub.reg.joinWaitlist" : "pub.reg.register")}</button>
-        {!ev.viewer.loggedIn && ev.tickets.some((x) => x.memberPriceJpy < x.nonMemberPriceJpy) && (
-          <p className="pe-note">{t("pub.reg.memberDiscountHint")}</p>
-        )}
       </>
     );
   }
@@ -103,7 +97,7 @@ export default function EventPage({ navigateTo, slug }) {
     getPublicEvent(slug)
       .then((d) => {
         if (cancelled) return;
-        const event = normalizeEvent({ ...d.event, legacy: !!d.legacy });
+        const event = normalizeEvent(d.event);
         setEv(event);
         document.title = `${event.title} | ${siteConfig.name}`;
       })
@@ -170,14 +164,11 @@ export default function EventPage({ navigateTo, slug }) {
                       <div className="pe-ticket-info">
                         <strong>{x.name}</strong>
                         {x.description && <p className="pe-meta">{x.description}</p>}
-                        {x.earlyBirdOpen && <p className="pe-note">{t("pub.earlyBird", { price: formatJpy(x.earlyBirdMemberPriceJpy), until: formatJst(x.earlyBirdCutoff) })}</p>}
+                        {x.earlyBirdOpen && <p className="pe-note">{t("pub.earlyBird", { price: formatJpy(x.earlyBirdPriceJpy), until: formatJst(x.earlyBirdCutoff) })}</p>}
                         {x.perPersonCap && <p className="pe-meta">{t("pub.maxPer", { n: x.perPersonCap })}</p>}
                       </div>
                       <div className="pe-prices">
                         <span className="pe-price">{formatJpy(x.yourPriceJpy)}</span>
-                        {x.memberPriceJpy !== x.nonMemberPriceJpy && (
-                          <small>{t("pub.memberVsGuest", { member: formatJpy(x.memberPriceJpy), guest: formatJpy(x.nonMemberPriceJpy) })}</small>
-                        )}
                         {x.remaining === 0 ? <small className="pe-warn">{t("pub.soldOut")}</small>
                           : x.remaining !== null && x.remaining <= 10 && <small className="pe-warn">{t("pub.fewLeft", { n: x.remaining })}</small>}
                       </div>
@@ -203,7 +194,7 @@ export default function EventPage({ navigateTo, slug }) {
           </section>
         )}
           </div>
-          <aside className="pe-aside"><RegistrationBox ev={ev} navigateTo={navigateTo} /><AddonList ev={ev} navigateTo={navigateTo} /></aside>
+          <aside className="pe-aside"><RegistrationBox ev={ev} navigateTo={navigateTo} /><AddonList ev={ev} /></aside>
         </div>
       </article>
     </EventShell>

@@ -30,8 +30,7 @@ export function EventCard({ ev, navigateTo }) {
         {place && <p className="pe-meta">{place}</p>}
         {ev.shortDescription && <p className="pe-card-text">{ev.shortDescription}</p>}
         <p className="pe-badges">
-          {ev.membersOnly && <span className="pe-pill pe-pill-accent">{t("pub.membersOnly")}</span>}
-          {!ev.membersOnly && !caps.guestCheckout.enabled && <span className="pe-pill pe-pill-accent">{t("pub.signInRequiredBadge")}</span>}
+          {!caps.guestCheckout.enabled && <span className="pe-pill pe-pill-accent">{t("pub.signInRequiredBadge")}</span>}
           {["cancelled", "canceled", "archived"].includes(ev.status) && <span className="pe-pill pe-pill-closed">{t("pub.state.cancelled")}</span>}
           {ev.status === "closed" && <span className="pe-pill pe-pill-closed">{t("pub.registrationClosed")}</span>}
           {ev.status === "published" && <span className="pe-pill pe-pill-open">{t("pub.badge.open")}</span>}

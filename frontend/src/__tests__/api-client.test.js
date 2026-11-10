@@ -5,7 +5,6 @@ import { fakeIdToken } from "./fixtures";
 vi.mock("@aws-sdk/client-cognito-identity-provider", async () => (await import("./sdkMock")).mockSdk());
 
 import * as session from "../auth/session";
-import { saveRegistrantSession } from "../registrantAuth";
 import { getPublicEvent, myEventRegistrations, registerForEvent } from "../eventsApi";
 
 const reply = (status, body) => ({ ok: status < 400, status, json: async () => body });
@@ -34,15 +33,6 @@ describe("event platform client: identity", () => {
     await registerForEvent("sample-gathering", { tickets: { adult: 1 } });
     expect(lastHeaders(fetchMock).Authorization).toBe(idToken);
     expect(JSON.stringify(fetchMock.mock.calls)).not.toMatch(/access-opaque|refresh-opaque/);
-  });
-
-  it("falls back to the member one-time-code token when that is all there is", async () => {
-    const payload = btoa(JSON.stringify({ email: "m@example.com", exp: Math.floor(Date.now() / 1000) + 600 })).replace(/=+$/, "");
-    saveRegistrantSession("m@example.com", `${payload}.sig`);
-    const fetchMock = vi.fn(async () => reply(200, {}));
-    vi.stubGlobal("fetch", fetchMock);
-    await getPublicEvent("x");
-    expect(lastHeaders(fetchMock).Authorization).toBe(`${payload}.sig`);
   });
 
   it("protected calls fail locally, without a request, when nobody is signed in", async () => {

@@ -24,7 +24,6 @@ const FILE_TYPES = [
   ["image/png", "PNG"],
   ["image/webp", "WebP"],
 ];
-const SYSTEM_TEST_VALUES = { membershipId: "M-TEST", membershipStatus: "active", membershipType: "Individual", membershipExpiry: "2099-03-31" };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -428,13 +427,12 @@ function Inspector({ fields, path, setFields, onSelect }) {
 
 function TestPanel({ eventId, fields, dirty }) {
   const [answers, setAnswers] = useState({});
-  const [asMember, setAsMember] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const check = async () => {
     setError("");
     try {
-      setResult(await validateEventForm(eventId, answers, asMember));
+      setResult(await validateEventForm(eventId, answers));
     } catch (err) {
       setError(err.message);
     }
@@ -442,13 +440,9 @@ function TestPanel({ eventId, fields, dirty }) {
   return (
     <div className="ep-card">
       <p className="ep-note">{t("events.form.testHelp")}</p>
-      <div className="field ep-check">
-        <label htmlFor="ep-asmember">
-          <input id="ep-asmember" type="checkbox" checked={asMember} onChange={(e) => setAsMember(e.target.checked)} /> {t("events.form.testAsMember")}
-        </label>
-      </div>
+
       <DynamicForm fields={fields} answers={answers} idPrefix="fbtest" onChange={(k, val) => setAnswers((a) => ({ ...a, [k]: val }))}
-        errors={result?.errors || {}} system={asMember ? SYSTEM_TEST_VALUES : { membershipStatus: "none" }} />
+        errors={result?.errors || {}} />
       <div className="btn-row">
         <button type="button" className="button primary" onClick={check} disabled={dirty}
           title={dirty ? t("events.form.saveFirst") : undefined}>

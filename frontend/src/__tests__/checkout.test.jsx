@@ -22,7 +22,7 @@ import { getPublicEvent, registerForEvent } from "../eventsApi";
 
 const SLUG = "sample-gathering";
 const signedIn = (over = {}) => makeEvent({
-  viewer: { loggedIn: true, email: "pat@example.com", name: "Pat Example", memberPricing: false, system: {}, provider: "cognito" }, ...over,
+  viewer: { loggedIn: true, email: "pat@example.com", name: "Pat Example" }, ...over,
 });
 const authResult = () => ({ AuthenticationResult: { IdToken: fakeIdToken(), AccessToken: "a", RefreshToken: "r" } });
 const show = (navigateTo = vi.fn()) => render(<EventRegister navigateTo={navigateTo} slug={SLUG} />);
@@ -142,18 +142,11 @@ describe("guest checkout", () => {
       unmount();
     }
   });
-
-  it("an event registered elsewhere is sent back to its page", async () => {
-    getPublicEvent.mockResolvedValue({ event: makeEvent({ source: "legacy" }), legacy: true });
-    const navigateTo = vi.fn();
-    show(navigateTo);
-    await waitFor(() => expect(navigateTo).toHaveBeenCalledWith(`/events/${SLUG}`, { replace: true }));
-  });
 });
 
 describe("guest checkout switched off for an event", () => {
   const noGuests = () => makeEvent({
-    access: { membersOnly: false, guestsAllowed: false },
+    access: { guestsAllowed: false },
     capabilities: { guestCheckout: { enabled: false }, authentication: { required: true } },
     registration: { allowed: false, reason: "login_required" },
   });
@@ -173,13 +166,6 @@ describe("guest checkout switched off for an event", () => {
     fireEvent.change(screen.getByLabelText(/^password/i), { target: { value: "Passw0rd-test" } });
     submitForm(/^sign in$/i);
     expect(await screen.findByRole("heading", { name: "Tickets" })).toBeTruthy();
-  });
-
-  it("members-only events always need an account", async () => {
-    getPublicEvent.mockResolvedValue({ event: makeEvent({ access: { membersOnly: true, guestsAllowed: false }, registration: { allowed: false, reason: "login_required" } }) });
-    show();
-    expect(await screen.findByText(/for npo members/i)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /continue as a guest/i })).toBeNull();
   });
 });
 

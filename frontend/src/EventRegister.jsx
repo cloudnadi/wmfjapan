@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DynamicForm from "./DynamicForm";
 import EventShell, { ErrorBox, Loading } from "./EventShell";
+import AddonsStep, { EMPTY_ADDONS, addonErrors, addonsPayload, addonsTotal, hasAddons } from "./AddonsStep";
 import AuthPanel from "./auth/AuthPanel";
 import { tabStore } from "./auth/storage";
 import { registerForEvent, getPublicEvent, uploadEventFile } from "./eventsApi";
@@ -45,7 +46,24 @@ function requiredErrors(fields, answers, prefix = "") {
   return errors;
 }
 
-function OrderSummary({ ev, lines, total }) {
+/** Plain-language lines for the chosen add-ons (display only). */
+function addonLines(ev, addons) {
+  const out = [];
+  const slot = (ev.addons?.entrySlots?.slots || []).find((x) => x.slotId === addons.slotId);
+  if (slot) out.push({ key: "slot", label: t("pub.summary.slot"), text: slot.name, jpy: 0 });
+  (ev.addons?.zoneUpgrade?.upgrades || []).forEach((u) => {
+    const n = addons.upgrades[u.upgradeId] || 0;
+    if (n) out.push({ key: u.upgradeId, label: u.name, text: `×${n}`, jpy: u.priceJpy * n });
+  });
+  if (addons.seats.length) {
+    const sections = ev.addons?.seatReservation?.sections || [];
+    const extra = addons.seats.reduce((sum, seat) => sum + (sections.find((x) => seat.startsWith(`${x.sectionId}-`))?.extraPriceJpy || 0), 0);
+    out.push({ key: "seats", label: t("pub.summary.seats"), text: addons.seats.join(", "), jpy: extra });
+  }
+  return out;
+}
+
+function OrderSummary({ ev, lines, total, extras = [] }) {
   const place = [ev.location?.venueName, ev.location?.address].filter(Boolean).join(", ");
   return (
     <aside className="pe-summary-card" aria-labelledby="pe-summary-h">
@@ -58,6 +76,7 @@ function OrderSummary({ ev, lines, total }) {
       {lines.length === 0 ? <p className="pe-meta">{t("pub.summary.empty")}</p> : (
         <ul className="pe-summary-lines">
           {lines.map((l) => <li key={l.ticketTypeId}><span>{l.name}</span><span>×{l.qty}</span><span>{formatJpy(l.yourPriceJpy * l.qty)}</span></li>)}
+          {extras.map((x) => <li key={x.key}><span>{x.label}</span><span>{x.text}</span><span>{x.jpy ? formatJpy(x.jpy) : ""}</span></li>)}
         </ul>
       )}
       <p className="pe-summary-total"><span>{t("pub.total")}</span><strong>{formatJpy(total)}</strong></p>
@@ -75,6 +94,7 @@ export default function EventRegister({ navigateTo, slug }) {
   const [method, setMethod] = useState("");
   const [busy, setBusy] = useState(false);
   const [guest, setGuest] = useState(false);
+  const [addons, setAddons] = useState(EMPTY_ADDONS);
   const [restored, setRestored] = useState(false);
   const resumeStep = useRef("tickets");
   const draftApplied = useRef(false);
@@ -84,7 +104,6 @@ export default function EventRegister({ navigateTo, slug }) {
   const load = useCallback(async () => {
     try {
       const d = await getPublicEvent(slug);
-      if (d.legacy) return navigateTo(`/events/${slug}`, { replace: true });
       const event = normalizeEvent(d.event);
       setEv(event);
       setAnswers((a) => ({
@@ -99,7 +118,8 @@ export default function EventRegister({ navigateTo, slug }) {
           setQty(Object.fromEntries(Object.entries(draft.qty || {}).filter(([id, n]) => known.has(id) && Number(n) > 0)));
           setAnswers((a) => ({ ...(draft.answers || {}), ...a, ...(event.viewer.loggedIn ? { email: event.viewer.email } : {}) }));
           setGuest(!!draft.guest);
-          if (event.viewer.loggedIn || draft.guest) setStep(["tickets", "details", "review"].includes(draft.step) ? draft.step : "tickets");
+          if (draft.addons) setAddons({ ...EMPTY_ADDONS, ...draft.addons });
+          if (event.viewer.loggedIn || draft.guest) setStep(["tickets", "addons", "details", "review"].includes(draft.step) ? draft.step : "tickets");
           setRestored(true);
         }
       }
@@ -117,8 +137,21 @@ export default function EventRegister({ navigateTo, slug }) {
     () => (ev ? ev.tickets.filter((x) => (qty[x.ticketTypeId] || 0) > 0).map((x) => ({ ...x, qty: qty[x.ticketTypeId] })) : []),
     [ev, qty]
   );
-  const total = lines.reduce((sum, l) => sum + l.yourPriceJpy * l.qty, 0);
+  const ticketsJpy = lines.reduce((sum, l) => sum + l.yourPriceJpy * l.qty, 0);
   const seats = lines.reduce((sum, l) => sum + l.qty, 0);
+  const withAddons = !!ev && hasAddons(ev);
+  const addonJpy = withAddons ? addonsTotal(ev, addons) : 0;
+  const total = ticketsJpy + addonJpy;
+
+  // Fewer tickets than seats/upgrades chosen: trim the selection so it always matches the tickets.
+  useEffect(() => {
+    setAddons((a) => {
+      const seatList = a.seats.slice(0, seats);
+      let room = seats;
+      const upgrades = Object.fromEntries(Object.entries(a.upgrades).map(([id, n]) => { const keep = Math.min(n, room); room -= keep; return [id, keep]; }));
+      return seatList.length === a.seats.length && JSON.stringify(upgrades) === JSON.stringify(a.upgrades) ? a : { ...a, seats: seatList, upgrades };
+    });
+  }, [seats]);
 
   // Only a failure to load the event replaces the page. A submit error is shown above the form so nothing typed is lost.
   if (error && !ev) {
@@ -137,37 +170,33 @@ export default function EventRegister({ navigateTo, slug }) {
   const back = () => navigateTo(`/events/${slug}`);
 
   // Not open / sold out / cancelled / not allowed: explain, don't show a form.
-  if (["cancelled", "unavailable", "closed", "not_open", "sold_out", "members_only", "renewal_required"].includes(state)) {
+  if (["cancelled", "closed", "not_open", "sold_out"].includes(state)) {
     const messages = {
       cancelled: t("pub.state.cancelled"),
-      unavailable: t("pub.state.registrationUnavailable"),
       closed: t("pub.registrationClosed"),
       not_open: t("pub.reg.opensAt", { when: ev.registrationOpensAt ? formatJst(ev.registrationOpensAt) : "" }),
       sold_out: t("pub.state.soldOut"),
-      members_only: t("pub.reg.membersOnlyBlocked"),
-      renewal_required: t("pub.reg.renewalBlocked"),
     };
     return (
       <EventShell navigateTo={navigateTo} accent={ev.design?.accentColor}>
         <h1>{ev.title}</h1>
         <p role="alert">{messages[state]}</p>
-        {r.renewUrl && <button type="button" className="button primary" onClick={() => navigateTo("/member/membership")}>{t("pub.reg.renewNow")}</button>}
         <button type="button" className="button secondary" onClick={back}>{t("pub.back")}</button>
       </EventShell>
     );
   }
 
-  // Guest checkout can be switched off per event; members-only events always need an account.
-  const needLogin = !loggedIn && (ev.access.membersOnly || !caps.guestCheckout.enabled);
-  const draftNow = () => ({ qty, answers, step: step === "login" ? resumeStep.current : step, guest });
+  // Guest checkout can be switched off per event.
+  const needLogin = !loggedIn && !caps.guestCheckout.enabled;
+  const draftNow = () => ({ qty, answers, addons, step: step === "login" ? resumeStep.current : step, guest });
   const afterSignIn = async () => {
     await load();
     setGuest(false);
     setError("");
-    setStep(["tickets", "details", "review"].includes(resumeStep.current) ? resumeStep.current : "tickets");
+    setStep(["tickets", "addons", "details", "review"].includes(resumeStep.current) ? resumeStep.current : "tickets");
   };
   const openSignIn = () => {
-    resumeStep.current = ["tickets", "details", "review"].includes(step) ? step : "tickets";
+    resumeStep.current = ["tickets", "addons", "details", "review"].includes(step) ? step : "tickets";
     setStep("login");
   };
   if (!loggedIn && (step === "login" || (step === "start" && needLogin))) {
@@ -175,7 +204,7 @@ export default function EventRegister({ navigateTo, slug }) {
       <EventShell navigateTo={navigateTo} accent={ev.design?.accentColor}>
         <h1>{ev.title}</h1>
         <ErrorBox message={error} />
-        {needLogin && <p className="pe-note" role="status">{t(ev.access.membersOnly ? "pub.reg.membersOnlySignIn" : "pub.start.signInRequired")}</p>}
+        {needLogin && <p className="pe-note" role="status">{t("pub.start.signInRequired")}</p>}
         {restored && <p className="pe-note" role="status">{t("pub.start.draftRestored")}</p>}
         <AuthPanel
           returnTo={`/events/${slug}/register`}
@@ -187,18 +216,23 @@ export default function EventRegister({ navigateTo, slug }) {
     );
   }
 
-  const hasMemberDiscount = ev.tickets.some((x) => x.memberPriceJpy < x.nonMemberPriceJpy);
   const startGuest = () => { setGuest(true); setStep("tickets"); };
   const signInPrompt = !loggedIn && (
     <p className="pe-note">
-      {hasMemberDiscount && <>{t("pub.reg.memberDiscountHint")} </>}
       <button type="button" className="pe-link" onClick={openSignIn}>{t("pub.start.signInAccount")}</button>
     </p>
   );
 
-  const toDetails = () => {
+  const toAfterTickets = () => {
     if (seats === 0) return setFieldErrors({ tickets: t("pub.tickets.choose") });
     setFieldErrors({});
+    setStep(withAddons ? "addons" : "details");
+  };
+
+  const toDetails = () => {
+    const errs = withAddons ? addonErrors(ev, addons, seats) : {};
+    setFieldErrors(errs);
+    if (Object.keys(errs).length) return;
     setStep("details");
   };
 
@@ -216,6 +250,7 @@ export default function EventRegister({ navigateTo, slug }) {
     try {
       const res = await registerForEvent(slug, {
         tickets: Object.fromEntries(lines.map((l) => [l.ticketTypeId, l.qty])),
+        ...(withAddons ? { addons: addonsPayload(ev, addons) } : {}),
         answers, paymentMethod: total > 0 ? method : undefined, idempotencyKey: idempotencyKey.current,
       });
       const reg = res.registration;
@@ -237,7 +272,14 @@ export default function EventRegister({ navigateTo, slug }) {
         const labels = Object.fromEntries(ev.form.fields.map((f) => [f.key, f.label]));
         const details = Object.entries(e.fields).map(([k, msg]) => `${labels[k] || k}: ${msg}`).join(" · ");
         setError(`${e.message} — ${details}`);
-        setStep(e.fields.tickets || Object.keys(e.fields).every((k) => ev.tickets.some((x) => x.ticketTypeId === k)) ? "tickets" : "details");
+        const keys = Object.keys(e.fields);
+        setStep(e.fields.tickets || keys.every((k) => ev.tickets.some((x) => x.ticketTypeId === k)) ? "tickets"
+          : keys.some((k) => k.startsWith("addons.")) ? "addons" : "details");
+      } else if (e.code === "addon_unavailable") {
+        setFieldErrors(e.fields || {});
+        setError(e.message);
+        await load();                         // refresh what is still free, then let the attendee choose again
+        setStep("addons");
       } else {
         setError(e.message);
         if (e.code === "sold_out") load();
@@ -247,7 +289,7 @@ export default function EventRegister({ navigateTo, slug }) {
     }
   };
 
-  const stepNames = ["tickets", "details", "review"];
+  const stepNames = withAddons ? ["tickets", "addons", "details", "review"] : ["tickets", "details", "review"];
   const stepIndex = stepNames.indexOf(step);
 
   return (
@@ -275,8 +317,6 @@ export default function EventRegister({ navigateTo, slug }) {
                 <button type="button" className="button secondary" onClick={startGuest}>{t("pub.start.guest")}</button>
               </div>
               <p className="pe-note">{t("pub.start.guestNote")}</p>
-              {hasMemberDiscount && <p className="pe-note">{t("pub.reg.memberDiscountHint")}</p>}
-              <p className="pe-note"><button type="button" className="pe-link" onClick={() => navigateTo("/member/membership")}>{t("pub.reg.joinMembership")}</button></p>
             </>
           )}
           {loggedIn && (
@@ -291,10 +331,6 @@ export default function EventRegister({ navigateTo, slug }) {
       {step === "tickets" && (
         <section className="pe-box">
           <h2 tabIndex={-1} ref={headingRef}>{t("pub.step.tickets")}</h2>
-          {loggedIn && !ev.viewer.memberPricing && hasMemberDiscount && (
-            <p className="pe-note" role="status">{t("pub.tickets.expired")}{" "}
-              <button type="button" className="pe-link" onClick={() => navigateTo("/member/membership")}>{t("pub.reg.renewNow")}</button></p>
-          )}
           {restored && <p className="pe-note" role="status">{t("pub.start.draftRestored")}</p>}
           {guest && signInPrompt}
           {r.waitlist && <p className="pe-note" role="status">{t("pub.reg.full")}</p>}
@@ -328,9 +364,19 @@ export default function EventRegister({ navigateTo, slug }) {
           <p className="pe-total" aria-live="polite">{t("pub.total")}: <strong>{formatJpy(total)}</strong></p>
           <div className="btn-row">
             <button type="button" className="button secondary" onClick={back}>{t("pub.back")}</button>
-            <button type="button" className="button primary" onClick={toDetails}>{t("pub.continue")}</button>
+            <button type="button" className="button primary" onClick={toAfterTickets}>{t("pub.continue")}</button>
           </div>
         </section>
+      )}
+
+      {step === "addons" && withAddons && (
+        <>
+          <AddonsStep ev={ev} seats={seats} value={addons} onChange={(v) => { setAddons(v); setFieldErrors({}); }} errors={fieldErrors} headingRef={headingRef} />
+          <div className="btn-row">
+            <button type="button" className="button secondary" onClick={() => setStep("tickets")}>{t("pub.back")}</button>
+            <button type="button" className="button primary" onClick={toDetails}>{t("pub.continue")}</button>
+          </div>
+        </>
       )}
 
       {step === "details" && (
@@ -342,7 +388,7 @@ export default function EventRegister({ navigateTo, slug }) {
             onChange={(k, v) => { setAnswers((a) => ({ ...a, [k]: v })); setFieldErrors((e) => { const { [k]: _gone, ...rest } = e; return rest; }); }}
             uploadFile={(field, file) => uploadEventFile(slug, field.key, file)} />
           <div className="btn-row">
-            <button type="button" className="button secondary" onClick={() => setStep("tickets")}>{t("pub.back")}</button>
+            <button type="button" className="button secondary" onClick={() => setStep(withAddons ? "addons" : "tickets")}>{t("pub.back")}</button>
             <button type="button" className="button primary" onClick={toReview}>{t("pub.continue")}</button>
           </div>
         </section>
@@ -357,6 +403,12 @@ export default function EventRegister({ navigateTo, slug }) {
             <dd>
               <ul>{lines.map((l) => <li key={l.ticketTypeId}>{l.name} × {l.qty} — {formatJpy(l.yourPriceJpy * l.qty)}</li>)}</ul>
             </dd>
+            {withAddons && addonLines(ev, addons).length > 0 && (
+              <>
+                <dt>{t("pub.summary.options")}</dt>
+                <dd><ul>{addonLines(ev, addons).map((x) => <li key={x.key}>{x.label}: {x.text}{x.jpy ? ` — ${formatJpy(x.jpy)}` : ""}</li>)}</ul></dd>
+              </>
+            )}
             <dt>{t("pub.total")}</dt><dd><strong>{formatJpy(total)}</strong></dd>
           </dl>
           {r.waitlist && <p className="pe-note" role="status">{t("pub.review.waitlistNote")}</p>}
@@ -381,7 +433,7 @@ export default function EventRegister({ navigateTo, slug }) {
         </section>
       )}
         </div>
-        {step !== "start" && <OrderSummary ev={ev} lines={lines} total={total} />}
+        {step !== "start" && <OrderSummary ev={ev} lines={lines} total={total} extras={withAddons ? addonLines(ev, addons) : []} />}
       </div>
     </EventShell>
   );

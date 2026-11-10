@@ -472,30 +472,6 @@ export function CancellationPolicy({ navigateTo }) {
         </p>
       </section>
       <section>
-        <h2>NPO Membership</h2>
-        <p>
-          An NPO membership may be cancelled <strong>within 3 days of the payment date</strong>. A
-          cancellation request received within this period will be accepted and the membership fee
-          will be <strong>refunded</strong>. This applies to a spouse membership paid in the same
-          order as well.
-        </p>
-        <p>
-          Cancellation requests received <strong>more than 3 days after payment</strong> are not
-          eligible for a refund, and the membership remains valid until the end of its membership
-          year (31 October).
-        </p>
-        <p>
-          To cancel, write to{" "}
-          <a href={`mailto:${siteConfig.contactEmail}`}>{siteConfig.contactEmail}</a> from the email address
-          registered with your membership, quoting your payment date. Once a membership is
-          cancelled it ends, and the committee may review any AGM registration that relied on it.
-        </p>
-        <p>
-          A membership request that has not yet been paid can simply be left unpaid — no charge is
-          made and no cancellation is needed.
-        </p>
-      </section>
-      <section>
         <h2>Important</h2>
         <p>
           Cancellation requests received <strong>after the applicable cancellation deadline</strong>{" "}

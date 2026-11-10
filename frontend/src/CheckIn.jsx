@@ -146,7 +146,7 @@ export default function CheckIn({ navigateTo }) {
       getEvent(eventId).then((r) => setEvent(r.event)).catch((e) => setError(e.message));
       loadStats();
     } else {
-      listEvents().then((r) => setEvents(r.events.filter((e) => e.source !== "legacy" && ["published", "unlisted", "closed"].includes(e.status)))).catch((e) => setError(e.message));
+      listEvents().then((r) => setEvents(r.events.filter((e) => ["published", "unlisted", "closed"].includes(e.status)))).catch((e) => setError(e.message));
     }
   }, [signedIn, eventId, loadStats]);
 

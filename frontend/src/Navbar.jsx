@@ -3,58 +3,20 @@ import { useAuthSession } from "./auth/useAuth";
 import { signOut } from "./auth/session";
 import { t } from "./i18n";
 import "./site.css";
-import { getMembershipStatus } from "./api";
 import { siteConfig } from "./siteConfig";
-import {
-  clearRegistrantSession,
-  getRegistrantEmail,
-  isRegistrantAuthenticated,
-  onRegistrantSessionChange,
-} from "./registrantAuth";
 
 const HOME_PATH = "/";
-const MEMBER_PROFILE_PATH = "/member/profile";
-const MEMBER_MEMBERSHIP_PATH = "/member/membership";
-const MY_REGISTRATIONS_PATH = "/my/registrations";
-const SPONSORS_PATH = "/sponsors";
 const EVENTS_PATH = "/events";
 const MY_EVENTS_PATH = "/my/events";
 const SIGN_IN_PATH = "/signin";
 const ADMIN_PATH = "/admin";
 
-// Account dropdown for a signed-in attendee (Cognito account) and/or a member signed in with the older
-// one-time-code login. The name falls back to the email address.
+// Account dropdown for a signed-in attendee. The name falls back to the email address.
 function UserMenu({ navigateTo }) {
   const { session } = useAuthSession();
   const [open, setOpen] = useState(false);
-  const [memberName, setMemberName] = useState("");
-  const [memberEmail, setMemberEmail] = useState(() => getRegistrantEmail() || "");
-  const [memberAuthed, setMemberAuthed] = useState(() => isRegistrantAuthenticated());
   const ref = useRef(null);
   const triggerRef = useRef(null);
-
-  useEffect(
-    () =>
-      onRegistrantSessionChange(() => {
-        setMemberAuthed(isRegistrantAuthenticated());
-        setMemberEmail(getRegistrantEmail() || "");
-        setMemberName("");
-      }),
-    []
-  );
-
-  useEffect(() => {
-    if (!memberAuthed) return undefined;
-    let cancelled = false;
-    getMembershipStatus()
-      .then((status) => {
-        if (!cancelled) setMemberName(status?.profile?.fullName || status?.memberName || "");
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [memberAuthed, memberEmail]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -75,14 +37,13 @@ function UserMenu({ navigateTo }) {
     };
   }, [open]);
 
-  if (!session && !memberAuthed) return null;
+  if (!session) return null;
 
   const go = (path) => {
     setOpen(false);
     navigateTo(path);
   };
-  const email = session?.email || memberEmail;
-  const displayName = session?.name || memberName || email.split("@")[0] || t("site.nav.account");
+  const displayName = session.name || session.email.split("@")[0] || t("site.nav.account");
   const initials =
     displayName
       .split(/\s+/)
@@ -92,18 +53,10 @@ function UserMenu({ navigateTo }) {
       .join("") || "A";
   const items = [
     { label: t("site.nav.myEvents"), onClick: () => go(MY_EVENTS_PATH) },
-    ...(memberAuthed
-      ? [
-          { label: "Member Profile", onClick: () => go(MEMBER_PROFILE_PATH) },
-          { label: "WMF Japan Foundation Membership", onClick: () => go(MEMBER_MEMBERSHIP_PATH) },
-          { label: "Registrations", onClick: () => go(MY_REGISTRATIONS_PATH) },
-        ]
-      : []),
     {
       label: t("site.nav.signOut"),
       onClick: async () => {
         setOpen(false);
-        clearRegistrantSession();
         const { hostedLogoutUrl } = await signOut();
         if (hostedLogoutUrl) window.location.assign(hostedLogoutUrl);
         else navigateTo(HOME_PATH);
@@ -127,12 +80,8 @@ function UserMenu({ navigateTo }) {
       {open ? (
         <div className="wmf-user-menu" role="menu">
           <div className="wmf-user-head">
-            <div className="wmf-user-hello">
-              {t("auth.signedInAs", { email })}
-            </div>
-            <div className="wmf-user-avatar" aria-hidden="true">
-              {initials}
-            </div>
+            <div className="wmf-user-hello">{t("auth.signedInAs", { email: session.email })}</div>
+            <div className="wmf-user-avatar" aria-hidden="true">{initials}</div>
           </div>
           {items.map((item) => (
             <button key={item.label} type="button" role="menuitem" className="wmf-user-item" onClick={item.onClick}>
@@ -152,9 +101,7 @@ function UserMenu({ navigateTo }) {
 export default function Navbar({ navigateTo, brand = siteConfig.name, links, primaryAction, showUserMenu = true }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { session } = useAuthSession();
-  const [memberAuthed, setMemberAuthed] = useState(() => isRegistrantAuthenticated());
-  useEffect(() => onRegistrantSessionChange(() => setMemberAuthed(isRegistrantAuthenticated())), []);
-  const authed = !!session || memberAuthed;
+  const authed = !!session;
 
   const goSignIn = () => {
     const here = `${window.location.pathname}${window.location.search}`;
@@ -167,7 +114,6 @@ export default function Navbar({ navigateTo, brand = siteConfig.name, links, pri
       : [
           ...(authed ? [] : [{ label: t("site.nav.signIn"), cta: true, onClick: goSignIn }]),
           { label: t("site.nav.events"), onClick: () => navigateTo(EVENTS_PATH) },
-          { label: "Sponsors", onClick: () => navigateTo(SPONSORS_PATH) },
           { label: t("site.orgLink", { org: siteConfig.orgName }), href: siteConfig.orgUrl, external: true },
           ...(siteConfig.contactEmail ? [{ label: t("site.footer.contact"), href: `mailto:${siteConfig.contactEmail}` }] : []),
           { label: t("site.footer.adminLogin"), onClick: () => navigateTo(ADMIN_PATH), mobileOnly: true },

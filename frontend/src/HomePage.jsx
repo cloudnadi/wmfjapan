@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import AgmBanner from "./AgmBanner";
 import { EventCard } from "./EventsList";
 import Navbar from "./Navbar";
 import SiteFooter from "./SiteFooter";
-import { getSiteConfig } from "./api";
 import { listPublicEvents } from "./eventsApi";
 import { t } from "./i18n";
 import { siteConfig } from "./siteConfig";
@@ -12,11 +10,10 @@ import "./site.css";
 
 const MAX_ON_HOME = 6;
 
-/** Home: the events the platform is currently offering (nothing is hard-coded), plus membership / AGM notices. */
+/** Home: the events the platform is currently offering (nothing is hard-coded). */
 export default function HomePage({ navigateTo }) {
   const [events, setEvents] = useState(null);
   const [error, setError] = useState("");
-  const [agm, setAgm] = useState(null);
   const [attempt, setAttempt] = useState(0);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
@@ -32,17 +29,6 @@ export default function HomePage({ navigateTo }) {
       cancelled = true;
     };
   }, [attempt]);
-
-  // The AGM notice is optional extra content: a failure here is silent.
-  useEffect(() => {
-    let cancelled = false;
-    getSiteConfig()
-      .then(({ config }) => !cancelled && setAgm(config?.agm || null))
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const categories = useMemo(() => [...new Set((events || []).map((e) => e.category).filter(Boolean))].sort(), [events]);
   const shown = useMemo(() => {
@@ -111,15 +97,6 @@ export default function HomePage({ navigateTo }) {
           )}
         </section>
 
-        <AgmBanner agm={agm} navigateTo={navigateTo} />
-
-        <section className="home-section" aria-labelledby="home-membership">
-          <div className="home-membership">
-            <h2 id="home-membership">{t("home.membership.title")}</h2>
-            <p>{t("home.membership.text")}</p>
-            <button type="button" className="button primary" onClick={() => navigateTo("/member/membership")}>{t("home.membership.cta")}</button>
-          </div>
-        </section>
       </main>
       <SiteFooter navigateTo={navigateTo} />
     </>

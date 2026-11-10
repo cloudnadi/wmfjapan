@@ -1,5 +1,5 @@
 // Admin API client for the event platform (/admin/event-platform/*).
-import { requestAdminJson } from "./api";
+import { requestAdminJson } from "./adminApi";
 
 const BASE = "/admin/event-platform";
 const enc = encodeURIComponent;
@@ -31,8 +31,8 @@ export const saveEventForm = (id, fields, baseVersion) =>
   requestAdminJson(`${BASE}/events/${enc(id)}/form`, json("PUT", { fields, baseVersion }));
 export const getEventFormVersion = (id, version) =>
   requestAdminJson(`${BASE}/events/${enc(id)}/form/versions/${enc(version)}`);
-export const validateEventForm = (id, answers, asMember) =>
-  requestAdminJson(`${BASE}/events/${enc(id)}/form/validate`, json("POST", { answers, asMember }));
+export const validateEventForm = (id, answers) =>
+  requestAdminJson(`${BASE}/events/${enc(id)}/form/validate`, json("POST", { answers }));
 export const applyFormSource = (id, source, baseVersion) =>
   requestAdminJson(`${BASE}/events/${enc(id)}/form/apply`, json("POST", { ...source, baseVersion }));
 export const listFormTemplates = () => requestAdminJson(`${BASE}/form-templates`);
@@ -75,3 +75,7 @@ export function downloadExport(file) {
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+// ── Payment methods (card / bank transfer / PayPay shown at checkout) ────────
+export const getPaymentMethods = () => requestAdminJson(`${BASE}/payment-methods`);
+export const savePaymentMethods = (methods) => requestAdminJson(`${BASE}/payment-methods`, json("PUT", { methods }));

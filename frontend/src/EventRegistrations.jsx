@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import "./publicEvents.css";
+import { RegistrationAddons } from "./AddonsStep";
 import DynamicForm from "./DynamicForm";
 import { AddRegistration, EmailPanel } from "./RegistrationTools";
 import { formatJpy, formatJst, t } from "./i18n";
@@ -175,20 +176,21 @@ function Detail({ eventId, rid, roles = [], onClose, onChanged }) {
       {reg.anonymizedAt && <p className="ep-note" role="note">{t("reg.detail.erasedNote", { when: formatJst(reg.anonymizedAt) })}</p>}
       <dl className="pe-summary">
         <dt>{t("pub.tickets")}</dt><dd><ul>{reg.tickets.map((l) => <li key={l.ticketTypeId}>{l.name} × {l.qty} — {formatJpy(l.subtotalJpy)}</li>)}</ul></dd>
+        {reg.addons && <><dt>{t("pub.summary.options")}</dt><dd><RegistrationAddons reg={reg} /></dd></>}
         <dt>{t("pub.total")}</dt><dd><strong>{formatJpy(reg.totalJpy)}</strong>{reg.paymentMethod && reg.paymentMethod !== "none" ? ` (${reg.paymentMethod})` : ""}</dd>
         <dt>{t("reg.detail.registered")}</dt><dd>{formatJst(reg.createdAt)}{reg.createdBy ? ` · ${reg.createdBy}` : ""}</dd>
         {reg.holdUntil && <><dt>{t("reg.detail.heldUntil")}</dt><dd>{formatJst(reg.holdUntil)}</dd></>}
         {reg.paidAt && <><dt>{t("reg.detail.paid")}</dt><dd>{formatJst(reg.paidAt)} · {reg.paidVia}{reg.paymentReference ? ` · ${reg.paymentReference}` : ""}</dd></>}
         {reg.refundedAt && <><dt>{t("reg.detail.refunded")}</dt><dd>{formatJst(reg.refundedAt)} · {reg.refundMode}{reg.refundNote ? ` · ${reg.refundNote}` : ""}{reg.refundReference ? ` · ${reg.refundReference}` : ""}</dd></>}
         {reg.cancelledAt && <><dt>{t("reg.detail.cancelled")}</dt><dd>{formatJst(reg.cancelledAt)} · {reg.cancelledBy} · {reg.cancelReason}</dd></>}
-        {reg.memberEmail && <><dt>{t("reg.detail.member")}</dt><dd>{reg.memberEmail}</dd></>}
+        {reg.accountEmail && <><dt>{t("reg.detail.account")}</dt><dd>{reg.accountEmail}</dd></>}
         <dt>{t("reg.detail.formVersion")}</dt><dd>v{reg.formVersion}</dd>
       </dl>
 
       <h4>{t("reg.detail.answers")}</h4>
       {editing ? (
         <>
-          <DynamicForm fields={data.form.fields} answers={answers} idPrefix="rd" errors={fieldErrors} readOnlyKeys={reg.memberEmail ? ["email"] : []}
+          <DynamicForm fields={data.form.fields} answers={answers} idPrefix="rd" errors={fieldErrors} readOnlyKeys={reg.accountEmail ? ["email"] : []}
             system={reg.answers} onChange={(k, v) => setAnswers((a) => ({ ...a, [k]: v }))} />
           <div className="field">
             <label htmlFor="rd-note">{t("reg.add.note")}</label>

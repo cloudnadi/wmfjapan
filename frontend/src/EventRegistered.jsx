@@ -3,8 +3,8 @@ import QRCode from "qrcode";
 import EventShell, { ErrorBox, Loading, StatusPill } from "./EventShell";
 import { getRegistrationByToken, payRegistration } from "./eventsApi";
 import { formatJpy, formatJst, t } from "./i18n";
+import { RegistrationAddons } from "./AddonsStep";
 import { isSignedIn } from "./auth/session";
-import { isRegistrantAuthenticated } from "./registrantAuth";
 
 const POLL_MS = 5000;
 const POLL_FOR_MS = 3 * 60 * 1000;
@@ -119,11 +119,12 @@ export default function EventRegistered({ navigateTo, slug }) {
           {ev?.location?.onlineUrl && <><dt>{t("pub.done.online")}</dt><dd><a href={ev.location.onlineUrl} target="_blank" rel="noopener noreferrer">{ev.location.onlineUrl}</a></dd></>}
           <dt>{t("pub.tickets")}</dt>
           <dd><ul>{reg.tickets.map((l) => <li key={l.ticketTypeId}>{l.name} × {l.qty} — {formatJpy(l.subtotalJpy)}</li>)}</ul></dd>
+          {reg.addons && <><dt>{t("pub.summary.options")}</dt><dd><RegistrationAddons reg={reg} /></dd></>}
           <dt>{t("pub.total")}</dt><dd><strong>{formatJpy(reg.totalJpy)}</strong></dd>
         </dl>
         <div className="btn-row">
           {ev && <button type="button" className="button secondary" onClick={() => navigateTo(`/events/${ev.slug}`)}>{t("pub.done.eventPage")}</button>}
-          {reg.memberEmail && (isSignedIn() || isRegistrantAuthenticated()) && (
+          {reg.accountEmail && isSignedIn() && (
             <button type="button" className="button secondary" onClick={() => navigateTo("/my/events")}>{t("pub.done.myRegistrations")}</button>
           )}
           <button type="button" className="button secondary" onClick={() => window.print()}>{t("pub.done.print")}</button>
