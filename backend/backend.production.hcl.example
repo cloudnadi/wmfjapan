@@ -1,4 +1,0 @@
-bucket         = "REPLACE_ME"
-key            = "REPLACE_ME"
-region         = "ap-northeast-1"
-encrypt        = true
