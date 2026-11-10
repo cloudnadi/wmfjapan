@@ -1,3 +1,4 @@
+import { siteConfig } from "./siteConfig";
 import { getRegistrantToken, getRegistrantEmail, handleRegistrantUnauthorized } from "./registrantAuth";
 import { getStoredAdminEmail, notifyAdminUnauthorized } from "./adminSession";
 
@@ -14,7 +15,7 @@ function getStoredValue(getter) {
 }
 
 function getOrCreateVisitorId() {
-  const storageKey = "nk-visitor-id";
+  const storageKey = "wmf-visitor-id";
   let visitorId = getStoredValue(() => localStorage.getItem(storageKey));
   if (visitorId) return visitorId;
 
@@ -166,21 +167,21 @@ export async function getAvailableSeats(eventType) {
 
 // ── Public registration login (email OTP) ──────────────────────────────────
 //
-// While the auth endpoints aren't deployed, mock mode resolves locally so the
-// login flow is usable end-to-end. In mock mode the accepted code is "000000".
-// Set VITE_ONAM_MOCK="false" once /auth/request-otp & /auth/verify-otp are live.
-const AUTH_MOCK = import.meta.env.VITE_ONAM_MOCK !== "false";
+// Local-development convenience only: with VITE_API_MOCK=true in a dev server (never in a production
+// build) the member login and its APIs resolve locally and the accepted code is "000000". Without it,
+// every call goes to the real API.
+const AUTH_MOCK = import.meta.env.DEV && import.meta.env.VITE_API_MOCK === "true";
 const MOCK_OTP_CODE = "000000";
 
 export async function requestLoginOtp(email) {
   if (AUTH_MOCK) {
     // Simulate the round-trip; the code is fixed in mock mode.
     await new Promise((resolve) => setTimeout(resolve, 400));
-    // Set localStorage "nk-mock-unknown" to any email to exercise the
+    // Set localStorage "wmf-mock-unknown" to any email to exercise the
     // not-registered path locally.
     let unknown = "";
     try {
-      unknown = localStorage.getItem("nk-mock-unknown") || "";
+      unknown = localStorage.getItem("wmf-mock-unknown") || "";
     } catch {
       unknown = "";
     }
@@ -188,7 +189,7 @@ export async function requestLoginOtp(email) {
       const err = new Error("We couldn't find a membership for this email. Please register first.");
       err.status = 404;
       err.notRegistered = true;
-      err.registerUrl = "https://www.wmfjapan.com/en/member/register";
+      err.registerUrl = siteConfig.memberRegisterUrl;
       throw err;
     }
     return { message: "A verification code has been sent (mock: use 000000).", cooldown: 30, mock: true };
@@ -259,14 +260,14 @@ export async function verifyLoginOtp(email, code) {
 // only that email's record.
 //
 // Mock mode short-circuits with a canned response. To exercise the member and
-// renewal paths locally without a backend, set localStorage "nk-mock-npo" to:
+// renewal paths locally without a backend, set localStorage "wmf-mock-npo" to:
 //   "member"  → valid member whose period covers today (member pricing + renew)
 //   "renewed" → valid member already covered for the renewal year (no upsell)
 //   anything else / unset → non-member (offer to join)
 function mockMembershipStatus() {
   let scenario = "none";
   try {
-    scenario = localStorage.getItem("nk-mock-npo") || "none";
+    scenario = localStorage.getItem("wmf-mock-npo") || "none";
   } catch {
     scenario = "none";
   }
@@ -357,8 +358,8 @@ async function fetchMembershipStatus() {
       },
       pendingPayment: (() => {
         try {
-          return String(localStorage.getItem("nk-mock-npo")).startsWith("pending")
-            ? { action: "join", fee: 1000, reportedAt: localStorage.getItem("nk-mock-reported") || "", attemptFailed: localStorage.getItem("nk-mock-npo") === "pending-failed", paymentMethod: { key: "square", label: "Credit / Debit Card", url: "https://example.com/pay", instructions: "" } }
+          return String(localStorage.getItem("wmf-mock-npo")).startsWith("pending")
+            ? { action: "join", fee: 1000, reportedAt: localStorage.getItem("wmf-mock-reported") || "", attemptFailed: localStorage.getItem("wmf-mock-npo") === "pending-failed", paymentMethod: { key: "square", label: "Credit / Debit Card", url: "https://example.com/pay", instructions: "" } }
             : null;
         } catch {
           return null;
@@ -446,7 +447,7 @@ export async function reportNpoPayment(reported) {
   if (AUTH_MOCK) {
     await new Promise((resolve) => setTimeout(resolve, 300));
     try {
-      localStorage.setItem("nk-mock-reported", reported ? new Date().toISOString() : "");
+      localStorage.setItem("wmf-mock-reported", reported ? new Date().toISOString() : "");
     } catch {
       // mock only
     }
@@ -507,7 +508,7 @@ export async function checkSpouseMembership(email) {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return { valid: false, status: "invalid", message: "Enter a valid email address for your spouse." };
     if (e.startsWith("unknown")) {
       return {
-        email: e, valid: false, status: "not_member", registerUrl: "https://www.wmfjapan.com/en/member/register",
+        email: e, valid: false, status: "not_member", registerUrl: siteConfig.memberRegisterUrl,
         message: "This email isn't registered as a WMF Japan member yet. Please request your spouse to become an NK member first, then add them here.",
       };
     }
@@ -520,7 +521,7 @@ export async function checkSpouseMembership(email) {
 // preview the per-adult discount for additional adults during registration.
 // Returns only a boolean; the register Lambda re-checks every email server-side.
 // In mock mode, emails listed (comma/space separated) in localStorage
-// "nk-mock-npo-emails" are treated as members.
+// "wmf-mock-npo-emails" are treated as members.
 export async function checkNpoMembership(email) {
   const normalized = String(email || "").trim().toLowerCase();
   if (!normalized) return false;
@@ -529,7 +530,7 @@ export async function checkNpoMembership(email) {
     await new Promise((resolve) => setTimeout(resolve, 200));
     let raw = "";
     try {
-      raw = localStorage.getItem("nk-mock-npo-emails") || "";
+      raw = localStorage.getItem("wmf-mock-npo-emails") || "";
     } catch {
       raw = "";
     }
@@ -560,7 +561,7 @@ export async function checkNpoMembership(email) {
 // my_registrations Lambda verifies it and scopes every result to the caller's
 // own email. In mock mode these resolve against localStorage so the manage flow
 // (list / edit / delete) is usable end-to-end without a backend.
-const MY_REG_MOCK_KEY = "nk-mock-registrations";
+const MY_REG_MOCK_KEY = "wmf-mock-registrations";
 
 function readMockRegistrations() {
   try {

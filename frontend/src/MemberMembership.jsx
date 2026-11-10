@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { siteConfig } from "./siteConfig";
 import Navbar from "./Navbar";
 import {
   applyNpoMembership,
@@ -590,7 +591,7 @@ export default function MemberMembership({ navigateTo }) {
   return (
     <>
       <Navbar navigateTo={navigateTo} />
-      <main className="page-wrap onam-reg">
+      <main className="page-wrap regform-reg">
         <header className="event-header event-header--standalone">
           <div className="banner-title">WMF Japan Foundation Membership</div>
           <div className="banner-sub-title">{email ? `Signed in as ${email}` : "Your WMF Japan"}</div>
@@ -645,7 +646,7 @@ export default function MemberMembership({ navigateTo }) {
                     {methods.length === 0 ? (
                       <p className="field-note">
                         Online sign-up isn't open just yet. Please check back soon or write to{" "}
-                        <a href="mailto:info@wmfjapan.com">info@wmfjapan.com</a>.
+                        <a href={`mailto:${siteConfig.contactEmail}`}>{siteConfig.contactEmail}</a>.
                       </p>
                     ) : (
                       <>
@@ -693,14 +694,14 @@ export default function MemberMembership({ navigateTo }) {
                             <div className="section-label" style={{ marginTop: 22 }}>
                               How would you like to pay?
                             </div>
-                            <div className="onam-toggle-group" role="radiogroup" aria-label="Payment method">
+                            <div className="regform-toggle-group" role="radiogroup" aria-label="Payment method">
                               {methods.map((m) => (
                                 <button
                                   key={m.key}
                                   type="button"
                                   role="radio"
                                   aria-checked={method === m.key}
-                                  className={`onam-toggle-pill ${method === m.key ? "selected" : ""}`}
+                                  className={`regform-toggle-pill ${method === m.key ? "selected" : ""}`}
                                   onClick={() => setMethod(m.key)}
                                 >
                                   {METHOD_ICONS[m.key] || "💴"} {m.label}
@@ -708,22 +709,22 @@ export default function MemberMembership({ navigateTo }) {
                               ))}
                             </div>
 
-                            <div className="onam-consents">
-                              <label className="onam-check">
+                            <div className="regform-consents">
+                              <label className="regform-check">
                                 <input type="checkbox" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} />
                                 <span>
                                   I accept the{" "}
                                   <a href="/terms" target="_blank" rel="noopener noreferrer">terms &amp; conditions</a>.
                                 </span>
                               </label>
-                              <label className="onam-check">
+                              <label className="regform-check">
                                 <input type="checkbox" checked={agreeCancel} onChange={(e) => setAgreeCancel(e.target.checked)} />
                                 <span>
                                   I accept the{" "}
                                   <a href="/cancellation" target="_blank" rel="noopener noreferrer">cancellation policy</a>.
                                 </span>
                               </label>
-                              <label className="onam-check">
+                              <label className="regform-check">
                                 <input type="checkbox" checked={agreePrivacy} onChange={(e) => setAgreePrivacy(e.target.checked)} />
                                 <span>
                                   I consent to my details being used to process this membership, per the{" "}

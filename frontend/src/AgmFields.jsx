@@ -153,7 +153,7 @@ export function AgmAttendeeFields({ value, onChange, disabled, checks = {}, lock
 
   return (
     <div className="agm-fields">
-      <div className="onam-toggle-group" role="radiogroup" aria-label="How will you attend?">
+      <div className="regform-toggle-group" role="radiogroup" aria-label="How will you attend?">
         {[
           ["in_person", "🏛️ In person"],
           ["remote", "💻 Remote"],
@@ -163,7 +163,7 @@ export function AgmAttendeeFields({ value, onChange, disabled, checks = {}, lock
             type="button"
             role="radio"
             aria-checked={value.attendance === key}
-            className={`onam-toggle-pill ${value.attendance === key ? "selected" : ""}`}
+            className={`regform-toggle-pill ${value.attendance === key ? "selected" : ""}`}
             onClick={() => set("attendance", key)}
             disabled={disabled}
           >

@@ -1,5 +1,5 @@
 /* Public event pages. Built on the site's theme variables; --pe-accent comes from the event's design. */
-.pe-page { --pe-accent: var(--nk-green); max-width: 1120px; margin: 0 auto; padding: 96px 20px 56px; color: var(--text); }
+.pe-page { --pe-accent: var(--wmf-green); max-width: 1120px; margin: 0 auto; padding: 96px 20px 56px; color: var(--text); }
 .pe-page h1 { margin: 0 0 12px; line-height: 1.15; letter-spacing: -0.01em; }
 .pe-page h2 { margin: 0 0 12px; font-size: 1.35rem; }
 .pe-section { margin-top: 36px; }
@@ -28,7 +28,7 @@
 .pe-card-text { margin: 4px 0 0; color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .pe-card-cta { margin-top: auto; align-self: flex-start; position: relative; z-index: 1; }
 
-.pe-eyebrow { text-transform: uppercase; letter-spacing: 0.1em; font-size: 12px; font-weight: 700; color: var(--pe-accent); margin: 0; }
+.pe-eyebrow { text-transform: uppercase; letter-spacing: 0.1em; font-size: 12px; font-weight: 700; color: var(--text-muted); margin: 0; }
 .pe-meta { color: var(--text-muted); font-size: 14px; margin: 0; }
 .pe-note { color: var(--text-muted); font-size: 13px; }
 .pe-warn { color: var(--amber-text); font-size: 13px; font-weight: 700; }
@@ -135,7 +135,7 @@
   .pe-card:hover, .pe-card:focus-within { transform: none; }
 }
 @media print {
-  .nk-nav, .pe-footer, .btn-row, .pe-aside { display: none !important; }
+  .wmf-nav, .pe-footer, .btn-row, .pe-aside { display: none !important; }
   .pe-page { padding-top: 0; }
   .pe-columns { display: block; }
 }

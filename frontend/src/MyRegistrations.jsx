@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { siteConfig } from "./siteConfig";
 import QRCode from "qrcode";
 import Navbar from "./Navbar";
 import {
@@ -28,7 +29,7 @@ import { getMySeatUpgrades } from "@plugins/seat-upgrade/frontend/api";
 const SEATED_OPTIONS = ["event", "combo"];
 // Read by HallSeatSelection on mount so a click from a specific registration's
 // card lands on that registration instead of making the visitor pick again.
-const PREFERRED_SEAT_REGISTRATION_KEY = "nk-seat-selection-registration-id";
+const PREFERRED_SEAT_REGISTRATION_KEY = "wmf-seat-selection-registration-id";
 
 const SEAT_PAYMENT_METHOD_LABELS = { paypay: "PayPay", square: "Credit/Debit Card (Square)", bank: "Bank Transfer" };
 const SEAT_STATUS_LABELS = {
@@ -39,10 +40,8 @@ const SEAT_STATUS_LABELS = {
 };
 
 const HOME_PATH = "/";
-const ONAM_REGISTRATION_PATH = "/onam/register";
+const EVENTS_PATH = "/events";
 const HALL_SEAT_SELECTION_PATH = "/my/hall-seat-selection";
-const SEAT_SELECTION_GUIDE_PATH = "/seat-selection-guide";
-const ZONE_UPGRADE_GUIDE_PATH = "/zone-upgrade-guide";
 
 const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const PHONE_REGEX = /^\+\d{1,4}[\s-]?\d[\d\s-]{5,18}$/;
@@ -95,7 +94,7 @@ function formatDateOnly(value) {
   return date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
 }
 
-// Onam participation options (labels mirror OnamRegistration.jsx / onam_pricing.py).
+// Onam participation options (labels mirror lambdas/my_registrations/onam_pricing.py).
 const ONAM_OPTIONS = [
   { key: "onam", label: "Onam Only" },
   { key: "event", label: "Celebrity Event Only" },
@@ -177,14 +176,14 @@ function PaymentBalanceRows({ reg }) {
       : (Number(reg.totalAmount) || 0) - paid;
   return (
     <>
-      <div className="onam-price-row">
+      <div className="regform-price-row">
         <div>Amount paid</div>
         <div />
         <div />
         <div>{yen(paid)}</div>
       </div>
       {balance ? (
-        <div className="onam-price-row balance-due">
+        <div className="regform-price-row balance-due">
           <div>{balance > 0 ? "Balance due" : "Refund due"}</div>
           <div />
           <div />
@@ -225,19 +224,6 @@ function getInitialAllocations(reg) {
     return [{ slotId: reg.slotId, seatCount: getRequiredSeatsForRegistration(reg) }];
   }
   return [];
-}
-
-// Copied from App.jsx/PartnersPage.jsx — same "copied component" convention
-// used throughout this app, so every page (not just the public ones) ends
-// with the same small business-development footer.
-function EventFooter() {
-  return (
-    <footer className="event-footer">
-      Host Your Event With Us
-      <br />
-      For bookings and inquiries, contact <a href="mailto:hello@cloudnadi.com">hello@cloudnadi.com</a>.
-    </footer>
-  );
 }
 
 export default function MyRegistrations({ navigateTo, onLogout }) {
@@ -351,7 +337,7 @@ export default function MyRegistrations({ navigateTo, onLogout }) {
   return (
     <>
       {nav}
-      <main className="page-wrap onam-reg">
+      <main className="page-wrap regform-reg">
         <header className="event-header">
           <div className="banner-title">My Registrations</div>
           <div className="banner-sub-title">
@@ -376,9 +362,9 @@ export default function MyRegistrations({ navigateTo, onLogout }) {
                 <button
                   type="button"
                   className="btn-primary"
-                  onClick={() => navigateTo(ONAM_REGISTRATION_PATH)}
+                  onClick={() => navigateTo(EVENTS_PATH)}
                 >
-                  Register Now →
+                  Browse events →
                 </button>
               </div>
             </div>
@@ -415,14 +401,13 @@ export default function MyRegistrations({ navigateTo, onLogout }) {
               <button
                 type="button"
                 className="btn-primary"
-                onClick={() => navigateTo(ONAM_REGISTRATION_PATH)}
+                onClick={() => navigateTo(EVENTS_PATH)}
               >
-                + Add New Registration
+                + Register for another event
               </button>
             </div>
           </>
         )}
-        <EventFooter />
       </main>
     </>
   );
@@ -618,12 +603,12 @@ function RegistrationCard({
       style={{ marginBottom: "18px" }}
     >
       <div className="form-body">
-        <div className="onam-summary-meta" style={{ justifyContent: "space-between", alignItems: "center" }}>
+        <div className="regform-summary-meta" style={{ justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <div className="section-label" style={{ marginBottom: "4px" }}>{title}</div>
           </div>
           {onam ? (
-            <span className={`onam-chip ${Number(reg.discountApplied) > 0 ? "npo" : ""}`}>
+            <span className={`regform-chip ${Number(reg.discountApplied) > 0 ? "npo" : ""}`}>
               {Number(reg.discountApplied) > 0 ? "NPO Pricing" : "Normal Pricing"}
             </span>
           ) : null}
@@ -642,13 +627,13 @@ function RegistrationCard({
             {/* Lock note sits right under the details it's about, above the
                 seat/dinner/upgrade blocks, rather than between them. */}
             {isDeleting ? null : sadhyaCheckedIn ? (
-              <div className="onam-note" style={{ marginTop: "16px" }}>
+              <div className="regform-note" style={{ marginTop: "16px" }}>
                 🔒 You've been checked in at the venue, so your entry slot is fixed
                 and this registration can no longer be edited or deleted. Please
                 speak to a volunteer if something is wrong.
               </div>
             ) : isPaid ? (
-              <div className="onam-note" style={{ marginTop: "16px" }}>
+              <div className="regform-note" style={{ marginTop: "16px" }}>
                 🔒 This registration is paid and can no longer be edited. Please
                 contact us if you need to make a change.
               </div>
@@ -680,7 +665,7 @@ function RegistrationCard({
                     ) : null}
 
                     {seatPurchases.length > 0 ? (
-                      <div className="onam-review-grid" style={{ marginTop: "8px" }}>
+                      <div className="regform-review-grid" style={{ marginTop: "8px" }}>
                         {seatPurchases.map((purchase) => (
                           <div
                             key={purchase.purchaseId}
@@ -842,7 +827,7 @@ function RegistrationCard({
                       ].filter((item) => item.qty > 0);
                       return (
                         <div key={u.upgradeId} style={{ marginBottom: "14px" }}>
-                          <div className="onam-review-grid">
+                          <div className="regform-review-grid">
                             <DetailRow label="Name" value={reg.name} />
                             <DetailRow label="Email" value={reg.email} />
                             <DetailRow
@@ -858,15 +843,15 @@ function RegistrationCard({
                               value={<span className={`payment-badge ${u.status}`}>{SEAT_UPGRADE_STATUS_LABELS[u.status] || u.status}</span>}
                             />
                           </div>
-                          <div className="onam-price-table" style={{ marginTop: "10px" }}>
-                            <div className="onam-price-head">
+                          <div className="regform-price-table" style={{ marginTop: "10px" }}>
+                            <div className="regform-price-head">
                               <div>Item</div>
                               <div>Qty</div>
                               <div>Price</div>
                               <div>Total</div>
                             </div>
                             {zoneItems.map((z) => (
-                              <div className="onam-price-row" key={z.key}>
+                              <div className="regform-price-row" key={z.key}>
                                 <div>{z.label}</div>
                                 <div>{z.qty}</div>
                                 <div>{yen(z.price)}</div>
@@ -874,14 +859,14 @@ function RegistrationCard({
                               </div>
                             ))}
                             {dinnerItems.map((item) => (
-                              <div className="onam-price-row" key={item.key}>
+                              <div className="regform-price-row" key={item.key}>
                                 <div>{item.label}</div>
                                 <div>{item.qty}</div>
                                 <div>{yen(item.price)}</div>
                                 <div>{yen(item.price * item.qty)}</div>
                               </div>
                             ))}
-                            <div className="onam-price-foot">
+                            <div className="regform-price-foot">
                               <div>Total</div>
                               <div />
                               <div />
@@ -1265,32 +1250,32 @@ function CelebrityDinnerSection({ registrationId, hasSeatUpgradeDinner = false }
         <div className="section-label" style={{ marginBottom: "10px" }}>🍽️ Dinner with Celebrity</div>
       </div>
       {config.dinnerDate ? (
-        <div className="onam-review-row">
-          <span className="onam-review-label">Date</span>
-          <span className="onam-review-value">{formatDinnerDate(config.dinnerDate)}</span>
+        <div className="regform-review-row">
+          <span className="regform-review-label">Date</span>
+          <span className="regform-review-value">{formatDinnerDate(config.dinnerDate)}</span>
         </div>
       ) : null}
-      <div className="onam-review-row">
-        <span className="onam-review-label">Venue</span>
-        <span className="onam-review-value">{config.venue || "—"}</span>
+      <div className="regform-review-row">
+        <span className="regform-review-label">Venue</span>
+        <span className="regform-review-value">{config.venue || "—"}</span>
       </div>
       {dinnerOpen && showDinnerPriceBreakdown ? (
         <>
-          <div className="onam-review-row">
-            <span className="onam-review-label">Price — Adult</span>
-            <span className="onam-review-value">
+          <div className="regform-review-row">
+            <span className="regform-review-label">Price — Adult</span>
+            <span className="regform-review-value">
               {config.currency} {config.dinnerPriceAdults}
             </span>
           </div>
-          <div className="onam-review-row">
-            <span className="onam-review-label">Price — Kid (9-14)</span>
-            <span className="onam-review-value">
+          <div className="regform-review-row">
+            <span className="regform-review-label">Price — Kid (9-14)</span>
+            <span className="regform-review-value">
               {config.currency} {config.dinnerPriceKids914}
             </span>
           </div>
-          <div className="onam-review-row">
-            <span className="onam-review-label">Price — Kid (6-8)</span>
-            <span className="onam-review-value">
+          <div className="regform-review-row">
+            <span className="regform-review-label">Price — Kid (6-8)</span>
+            <span className="regform-review-value">
               {config.currency} {config.dinnerPriceKids68}
             </span>
           </div>
@@ -1300,7 +1285,7 @@ function CelebrityDinnerSection({ registrationId, hasSeatUpgradeDinner = false }
       ) : null}
 
       {returnBanner ? (
-        <p className={returnBanner.status === "paid" ? "success-banner" : "field-note onam-capacity-note"}>
+        <p className={returnBanner.status === "paid" ? "success-banner" : "field-note regform-capacity-note"}>
           {returnBanner.status === "paid"
             ? "Payment received — your Dinner with Celebrity registration is confirmed."
             : "We're still confirming your payment with the provider. This usually takes a moment — refresh in a bit if the status below doesn't update."}
@@ -1308,24 +1293,24 @@ function CelebrityDinnerSection({ registrationId, hasSeatUpgradeDinner = false }
       ) : null}
 
       {!dinnerOpen ? (
-        <p className="onam-note" style={{ marginTop: "10px" }}>
+        <p className="regform-note" style={{ marginTop: "10px" }}>
           The Dinner with Celebrity is currently closed for changes. Your booking is shown below for reference —
-          please write to <a href="mailto:info@wmfjapan.com">info@wmfjapan.com</a> if you need help with it.
+          please write to <a href={`mailto:${siteConfig.contactEmail}`}>{siteConfig.contactEmail}</a> if you need help with it.
         </p>
       ) : windowStatus === "not_open" ? (
-        <p className="onam-note" style={{ marginTop: "10px" }}>
+        <p className="regform-note" style={{ marginTop: "10px" }}>
           Registration for the Dinner with Celebrity has not opened yet.
         </p>
       ) : windowStatus === "closed" && !dinnerReg ? (
-        <p className="onam-note" style={{ marginTop: "10px" }}>
+        <p className="regform-note" style={{ marginTop: "10px" }}>
           Registration for the Dinner with Celebrity has closed.
         </p>
       ) : remainingCapacity === 0 && !dinnerReg ? (
-        <p className="onam-note" style={{ marginTop: "10px" }}>
+        <p className="regform-note" style={{ marginTop: "10px" }}>
           The Dinner with Celebrity is fully booked.
         </p>
       ) : totalEligibleGuests <= 0 && !dinnerReg ? (
-        <p className="onam-note" style={{ marginTop: "10px" }}>
+        <p className="regform-note" style={{ marginTop: "10px" }}>
           This registration has no attendees eligible for the Dinner with Celebrity.
         </p>
       ) : null}
@@ -1335,7 +1320,7 @@ function CelebrityDinnerSection({ registrationId, hasSeatUpgradeDinner = false }
 
       {dinnerReg ? (
         <>
-          <div className="onam-review-grid" style={{ marginTop: "10px" }}>
+          <div className="regform-review-grid" style={{ marginTop: "10px" }}>
             <DetailRow label="Name" value={dinnerReg.name} />
             <DetailRow label="Email" value={dinnerReg.email} />
             <DetailRow
@@ -1351,22 +1336,22 @@ function CelebrityDinnerSection({ registrationId, hasSeatUpgradeDinner = false }
               value={<span className={`payment-badge ${dinnerReg.status}`}>{DINNER_STATUS_LABELS[dinnerReg.status] || dinnerReg.status}</span>}
             />
           </div>
-          <div className="onam-price-table" style={{ marginTop: "14px" }}>
-            <div className="onam-price-head">
+          <div className="regform-price-table" style={{ marginTop: "14px" }}>
+            <div className="regform-price-head">
               <div>Item</div>
               <div>Qty</div>
               <div>Price</div>
               <div>Total</div>
             </div>
             {dinnerLineItems.map((item) => (
-              <div className="onam-price-row" key={item.key}>
+              <div className="regform-price-row" key={item.key}>
                 <div>{item.label}</div>
                 <div>{item.qty}</div>
                 <div>{yen(item.price)}</div>
                 <div>{yen(item.price * item.qty)}</div>
               </div>
             ))}
-            <div className="onam-price-foot">
+            <div className="regform-price-foot">
               <div>Total</div>
               <div />
               <div />
@@ -1490,9 +1475,9 @@ function CelebrityDinnerSection({ registrationId, hasSeatUpgradeDinner = false }
 
 function DetailRow({ label, value }) {
   return (
-    <div className="onam-review-row">
-      <span className="onam-review-label">{label}</span>
-      <span className="onam-review-value">{value || "—"}</span>
+    <div className="regform-review-row">
+      <span className="regform-review-label">{label}</span>
+      <span className="regform-review-value">{value || "—"}</span>
     </div>
   );
 }
@@ -1575,7 +1560,7 @@ function OnamDetails({ reg }) {
 
   return (
     <>
-      <div className="onam-review-grid" style={{ marginTop: "12px" }}>
+      <div className="regform-review-grid" style={{ marginTop: "12px" }}>
         <DetailRow label="Name" value={reg.name} />
         <DetailRow label="Email" value={reg.email} />
         <DetailRow label="Phone" value={reg.phone} />
@@ -1589,15 +1574,15 @@ function OnamDetails({ reg }) {
       <EntryPasses reg={reg} />
 
       {lineItems.length > 0 ? (
-        <div className="onam-price-table" style={{ marginTop: "14px" }}>
-          <div className="onam-price-head">
+        <div className="regform-price-table" style={{ marginTop: "14px" }}>
+          <div className="regform-price-head">
             <div>Item</div>
             <div>Qty</div>
             <div>Price</div>
             <div>Total</div>
           </div>
           {lineItems.map((item, idx) => (
-            <div className="onam-price-row" key={item.category || idx}>
+            <div className="regform-price-row" key={item.category || idx}>
               <div>{item.label || item.category}</div>
               <div>{item.quantity}</div>
               <div>{yen(item.unitPrice)}</div>
@@ -1605,7 +1590,7 @@ function OnamDetails({ reg }) {
             </div>
           ))}
           {Number(reg.discountApplied) > 0 ? (
-            <div className="onam-price-row discount">
+            <div className="regform-price-row discount">
               <div>NPO discount applied</div>
               <div />
               <div />
@@ -1613,14 +1598,14 @@ function OnamDetails({ reg }) {
             </div>
           ) : null}
           {Number(reg.npoFee) > 0 ? (
-            <div className="onam-price-row">
+            <div className="regform-price-row">
               <div>NPO membership fee</div>
               <div>1</div>
               <div>{yen(reg.npoFee)}</div>
               <div>{yen(reg.npoFee)}</div>
             </div>
           ) : null}
-          <div className="onam-price-foot">
+          <div className="regform-price-foot">
             <div>Total</div>
             <div />
             <div />
@@ -1644,7 +1629,7 @@ function StandardDetails({ reg }) {
   const attendee_cnts = reg.attendeeCounts || {};
   return (
     <>
-      <div className="onam-review-grid" style={{ marginTop: "12px" }}>
+      <div className="regform-review-grid" style={{ marginTop: "12px" }}>
         <DetailRow label="Name" value={reg.name} />
         <DetailRow label="Email" value={reg.email} />
         <DetailRow label="Phone" value={reg.phone} />
@@ -1845,12 +1830,12 @@ function OnamEditForm({ reg, busy, onCancel, onSave }) {
   return (
     <>
       <div className="section-label" style={{ marginTop: "12px" }}>Registration Option</div>
-      <div className="onam-toggle-group">
+      <div className="regform-toggle-group">
         {ONAM_OPTIONS.map((o) => (
           <button
             type="button"
             key={o.key}
-            className={`onam-toggle-pill ${option === o.key ? "selected" : ""}`}
+            className={`regform-toggle-pill ${option === o.key ? "selected" : ""}`}
             onClick={() => setOption(o.key)}
           >
             {o.label}
@@ -1910,7 +1895,7 @@ function OnamEditForm({ reg, busy, onCancel, onSave }) {
             Optionally enter each additional adult's email. Active NPO members get the 10%
             member discount on their ticket automatically.
           </p>
-          <div className="onam-adult-emails">
+          <div className="regform-adult-emails">
             {additionalAdults.map((adult, index) => (
               <div className="field" key={index}>
                 <label>Adult {index + 2} email</label>
@@ -1931,7 +1916,7 @@ function OnamEditForm({ reg, busy, onCancel, onSave }) {
                     This email is already used by another attendee.
                   </span>
                 ) : adult.status === "member" ? (
-                  <span className="field-note onam-adult-member">
+                  <span className="field-note regform-adult-member">
                     ✓ NPO member — 10% discount applies
                   </span>
                 ) : adult.status === "none" ? (
@@ -1944,12 +1929,12 @@ function OnamEditForm({ reg, busy, onCancel, onSave }) {
       ) : null}
 
       <div className="section-label" style={{ marginTop: "6px" }}>Payment Method</div>
-      <div className="onam-toggle-group">
+      <div className="regform-toggle-group">
         {PAYMENT_METHODS.map((p) => (
           <button
             type="button"
             key={p.key}
-            className={`onam-toggle-pill ${paymentMethod === p.key ? "selected" : ""}`}
+            className={`regform-toggle-pill ${paymentMethod === p.key ? "selected" : ""}`}
             onClick={() => setPaymentMethod(p.key)}
           >
             {p.label}

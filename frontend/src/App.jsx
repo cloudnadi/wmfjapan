@@ -8,10 +8,9 @@ import {
 } from "./registrantAuth";
 import { hasAdminSession } from "./adminSession";
 import { startIdleWatcher } from "./sessionActivity";
-import Navbar from "./Navbar";
-import CommunityLanding, { AgmBanner } from "./CommunityLanding";
-// import PartnersSection from "./PartnersSection";
-import { getSiteConfig, getMyRegistrations, logPageVisit, prefetchMembershipStatus } from "./api";
+import HomePage from "./HomePage";
+import { useAuthSession } from "./auth/useAuth";
+import { logPageVisit, prefetchMembershipStatus } from "./api";
 
 // Every route below the landing page is loaded on demand, so a visitor who only
 // sees the home page never downloads the admin dashboard, the QR code library or
@@ -24,7 +23,8 @@ const EventPage = lazy(() => import("./EventPage"));
 const EventRegister = lazy(() => import("./EventRegister"));
 const EventRegistered = lazy(() => import("./EventRegistered"));
 const MyEventRegistrations = lazy(() => import("./MyEventRegistrations"));
-const OnamRegistration = lazy(() => import("./OnamRegistration"));
+const SignInPage = lazy(() => import("./SignInPage"));
+const AuthCallback = lazy(() => import("./auth/AuthCallback"));
 const MyRegistrations = lazy(() => import("./MyRegistrations"));
 const MemberProfile = lazy(() => import("./MemberProfile"));
 const MemberMembership = lazy(() => import("./MemberMembership"));
@@ -34,9 +34,6 @@ const CelebrityDinnerSignup = lazy(() => import("./CelebrityDinnerSignup"));
 const PartnersPage = lazy(() => import("./PartnersPage"));
 const EntryPassCheckIn = lazy(() => import("./EntryPassCheckIn"));
 const SeatPurchaseCheckIn = lazy(() => import("./SeatPurchaseCheckIn"));
-const SadhyaSlotGuide = lazy(() => import("./SadhyaSlotGuide"));
-const SeatSelectionGuide = lazy(() => import("./SeatSelectionGuide"));
-const ZoneUpgradeGuide = lazy(() => import("./ZoneUpgradeGuide"));
 
 // StaticPages has no default export, so pick the named one out of the module.
 const staticPage = (name) =>
@@ -46,7 +43,8 @@ const PrivacyPolicy = staticPage("PrivacyPolicy");
 const CancellationPolicy = staticPage("CancellationPolicy");
 
 const HOME_PATH = "/";
-const ONAM_REGISTRATION_PATH = "/onam/register";
+const SIGN_IN_PATH = "/signin";
+const AUTH_CALLBACK_PATH = "/auth/callback";
 const MY_REGISTRATIONS_PATH = "/my/registrations";
 const MEMBER_PROFILE_PATH = "/member/profile";
 const MEMBER_MEMBERSHIP_PATH = "/member/membership";
@@ -71,18 +69,12 @@ const CANCELLATION_PATH = "/cancellation";
 const PARTNERS_PATH = "/sponsors";
 const CHECK_IN_PATH = "/check-in";
 const SEAT_CHECK_IN_PATH = "/seat-check-in";
-const SADHYA_SLOT_GUIDE_PATH = "/sadhya-slot-guide";
-const SEAT_SELECTION_GUIDE_PATH = "/seat-selection-guide";
-const ZONE_UPGRADE_GUIDE_PATH = "/zone-upgrade-guide";
 
 const STATIC_PATHS = [
   TERMS_PATH,
   PRIVACY_PATH,
   CANCELLATION_PATH,
   PARTNERS_PATH,
-  SADHYA_SLOT_GUIDE_PATH,
-  SEAT_SELECTION_GUIDE_PATH,
-  ZONE_UPGRADE_GUIDE_PATH,
 ];
 
 export default function App() {
@@ -96,6 +88,7 @@ export default function App() {
 function AppRoutes() {
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname || HOME_PATH);
   const [registrantAuthed, setRegistrantAuthed] = useState(() => isRegistrantAuthenticated());
+  const { session: accountSession } = useAuthSession();   // also restores a stored attendee session at start-up
 
   useEffect(() => {
     const handlePopState = () => {
@@ -156,8 +149,9 @@ function AppRoutes() {
       currentPath !== EVENT_PLATFORM_PATH &&
       currentPath !== ADMIN_CHECK_IN_PATH &&
       currentPath !== MY_EVENTS_PATH &&
+      currentPath !== SIGN_IN_PATH &&
+      currentPath !== AUTH_CALLBACK_PATH &&
       !parseEventPath(currentPath) &&
-      currentPath !== ONAM_REGISTRATION_PATH &&
       currentPath !== MY_REGISTRATIONS_PATH &&
       currentPath !== MEMBER_PROFILE_PATH &&
       currentPath !== MEMBER_MEMBERSHIP_PATH &&
@@ -193,8 +187,8 @@ function AppRoutes() {
       currentPath === EVENT_PLATFORM_PATH ||
       currentPath === ADMIN_CHECK_IN_PATH ||
       currentPath === MY_EVENTS_PATH ||
+      currentPath === SIGN_IN_PATH ||
       !!parseEventPath(currentPath) ||
-      currentPath === ONAM_REGISTRATION_PATH ||
       currentPath === MY_REGISTRATIONS_PATH ||
       currentPath === MEMBER_PROFILE_PATH ||
       currentPath === MEMBER_MEMBERSHIP_PATH ||
@@ -210,9 +204,16 @@ function AppRoutes() {
     void logPageVisit({ path: currentPath, referrer: document.referrer });
   }, [currentPath]);
 
-  // Home page now hosts admin login/dashboard.
   if (currentPath === HOME_PATH) {
-    return <HomeAdminLanding navigateTo={navigateTo} />;
+    return <HomePage navigateTo={navigateTo} />;
+  }
+
+  if (currentPath === SIGN_IN_PATH) {
+    return <SignInPage navigateTo={navigateTo} />;
+  }
+
+  if (currentPath === AUTH_CALLBACK_PATH) {
+    return <AuthCallback navigateTo={navigateTo} />;
   }
 
   if (currentPath === ADMIN_LOGIN_PATH) {
@@ -236,15 +237,8 @@ function AppRoutes() {
   }
 
   if (currentPath === MY_EVENTS_PATH) {
-    if (!registrantAuthed) {
-      return (
-        <RegistrationLogin
-          navigateTo={navigateTo}
-          onAuthenticated={() => setRegistrantAuthed(true)}
-          title="Sign in to My Event Registrations"
-          description="We'll email you a 6-digit verification code to view and manage your event registrations."
-        />
-      );
+    if (!accountSession && !registrantAuthed) {
+      return <SignInPage navigateTo={navigateTo} />;
     }
     return <MyEventRegistrations navigateTo={navigateTo} />;
   }
@@ -272,57 +266,11 @@ function AppRoutes() {
   if (currentPath === SEAT_CHECK_IN_PATH) {
     return <SeatPurchaseCheckIn navigateTo={navigateTo} />;
   }
-  
-  if (currentPath === SADHYA_SLOT_GUIDE_PATH) {
-    return <SadhyaSlotGuide navigateTo={navigateTo} />;
-  }
-
-  if (currentPath === SEAT_SELECTION_GUIDE_PATH) {
-    return <SeatSelectionGuide navigateTo={navigateTo} />;
-  }
-
-  if (currentPath === ZONE_UPGRADE_GUIDE_PATH) {
-    return <ZoneUpgradeGuide navigateTo={navigateTo} />;
-  }
 
   const handleRegistrantLogout = () => {
     clearRegistrantSession();
     setRegistrantAuthed(false);
   };
-
-  // After signing in to register, a member with an existing registration goes
-  // straight to My Registrations instead of the registration form; a first-time
-  // registrant proceeds to the form as before. My Registrations offers its own
-  // "+ Add New Registration" button for members who want another one.
-  const handleRegistrantAuthenticated = () => {
-    setRegistrantAuthed(true);
-    getMyRegistrations()
-      .then((items) => {
-        if (Array.isArray(items) && items.length > 0) {
-          navigateTo(MY_REGISTRATIONS_PATH, { replace: true });
-        }
-      })
-      .catch(() => {
-        // Non-fatal: if we can't check, let the user proceed to register.
-      });
-  };
-
-  if (currentPath === ONAM_REGISTRATION_PATH) {
-    if (!registrantAuthed) {
-      return (
-        <RegistrationLogin
-          navigateTo={navigateTo}
-          onAuthenticated={handleRegistrantAuthenticated}
-        />
-      );
-    }
-    return (
-      <OnamRegistration
-        navigateTo={navigateTo}
-        onLogout={handleRegistrantLogout}
-      />
-    );
-  }
 
   if (currentPath === MY_REGISTRATIONS_PATH) {
     if (!registrantAuthed) {
@@ -431,224 +379,4 @@ function AppRoutes() {
   }
 
   return null;
-}
-
-function EventFooter() {
-  return (
-    <footer className="event-footer">
-      Host Your Event With Us
-      <br />
-      For bookings and inquiries, contact <a href="mailto:hello@cloudnadi.com">hello@cloudnadi.com</a>.
-    </footer>
-  );
-}
-
-// Both 2026 events have wrapped, so the landing page shows the community page
-// (membership + AGM) instead of the poster carousel and the register CTA. Flip this back to false
-// (and refresh UPCOMING_EVENTS) when the next event opens for registration.
-const EVENT_COMPLETED = true;
-
-const UPCOMING_EVENTS = [
-  {
-    date: "September 12, 2026",
-    name: "Aavani 2026",
-    venue: "Kasai Civic Hall, Edogawa",
-    time: "10:30 AM – 8:00 PM",
-  },
-  {
-    date: "October 3, 2026",
-    name: "40th Anniversary Celebrity Event",
-    venue: "Kasai Civic Hall, Edogawa",
-    time: "1:00 PM – 6:00 PM",
-  },
-];
-
-function HomeAdminLanding({ navigateTo }) {
-  const [onamImageSrc, setOnamImageSrc] = useState(
-    import.meta.env.VITE_ONAM_IMAGE || "/onam_banner.png"
-  );
-  const [anniversaryImageSrc, setAnniversaryImageSrc] = useState(
-    import.meta.env.VITE_ANNIVERSARY_IMAGE || "/onam_banner.png"
-  );
-  const [activeSlide, setActiveSlide] = useState(0);
-  const [registrationClosed, setRegistrationClosed] = useState(false);
-  const [agm, setAgm] = useState(null);
-
-  // Fetch live carousel URLs from the backend; fall back to env/static on failure.
-  useEffect(() => {
-    getSiteConfig().then(({ config }) => {
-      if (config?.onam?.imageUrl) setOnamImageSrc(config.onam.imageUrl);
-      if (config?.anniversary?.imageUrl) setAnniversaryImageSrc(config.anniversary.imageUrl);
-      setAgm(config?.agm || null);
-      // Past the deadline the register CTA becomes a dead end, so label it as closed.
-      const expiry = String(config?.onamRegistrationExpiry || "");
-      setRegistrationClosed(Boolean(expiry && new Date(`${expiry}T23:59:59`) < new Date()));
-    }).catch(() => {});
-  }, []);
-
-  const handleOnamImageError = () =>
-    setOnamImageSrc((c) => (c !== "/logo.png" ? "/logo.png" : c));
-  const handleAnniversaryImageError = () =>
-    setAnniversaryImageSrc((c) => (c !== "/logo.png" ? "/logo.png" : c));
-
-  const slides = [
-    {
-      src: onamImageSrc,
-      alt: "Aavani Onam 2026 – September 12 at Kasai Civic Hall",
-      onError: handleOnamImageError,
-    },
-    {
-      src: anniversaryImageSrc,
-      alt: "WMF Japan 40th Anniversary – October 3 at Kasai Civic Hall",
-      onError: handleAnniversaryImageError,
-    },
-  ];
-
-  const prevSlide = () =>
-    setActiveSlide((s) => (s - 1 + slides.length) % slides.length);
-  const nextSlide = () =>
-    setActiveSlide((s) => (s + 1) % slides.length);
-
-  return (
-    <>
-      <Navbar
-        navigateTo={navigateTo}
-      />
-      <main className="landing-page" id="top">
-        {EVENT_COMPLETED ? (
-          <CommunityLanding navigateTo={navigateTo} agm={agm} />
-        ) : (
-        <section className="landing-hero">
-          {/* Poster carousel — one event at a time */}
-          <div
-            className="hero-carousel"
-            role="region"
-            aria-label="Event posters"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === "ArrowLeft") prevSlide();
-              if (e.key === "ArrowRight") nextSlide();
-            }}
-          >
-            {slides.map((slide, idx) => (
-              <div
-                key={idx}
-                className={`hero-slide${activeSlide === idx ? " active" : ""}`}
-                role="group"
-                aria-roledescription="slide"
-                aria-label={`Slide ${idx + 1} of ${slides.length}`}
-                aria-hidden={activeSlide !== idx}
-              >
-                <img
-                  src={slide.src}
-                  alt={slide.alt}
-                  className="hero-slide-img"
-                  onError={slide.onError}
-                />
-              </div>
-            ))}
-
-            <button
-              type="button"
-              className="hero-carousel-prev"
-              onClick={prevSlide}
-              aria-label="Previous slide"
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              className="hero-carousel-next"
-              onClick={nextSlide}
-              aria-label="Next slide"
-            >
-              ›
-            </button>
-
-            <div className="hero-carousel-dots" role="tablist" aria-label="Slide navigation">
-              {slides.map((_, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  role="tab"
-                  className={`hero-carousel-dot${activeSlide === idx ? " active" : ""}`}
-                  aria-label={`Go to slide ${idx + 1}`}
-                  aria-selected={activeSlide === idx}
-                  onClick={() => setActiveSlide(idx)}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Event intro + CTA */}
-          <div className="landing-hero-cta-row">
-            <span className="landing-hero-kicker">WMF Japan Presents</span>
-            <h1>Aavani 2026 &amp; 40th Anniversary Celebration</h1>
-            <p>A celebration of Onam, togetherness, and 40 years of WMF Japan.</p>
-            {registrationClosed ? (
-              <button type="button" className="landing-hero-cta" disabled>
-                Registrations Closed
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="landing-hero-cta"
-                onClick={() => navigateTo(ONAM_REGISTRATION_PATH)}
-              >
-                Register Now →
-              </button>
-            )}
-          </div>
-        </section>
-        )}
-
-        {/* Upcoming events — hidden once the listed events are behind us. */}
-        {EVENT_COMPLETED ? null : (
-        <section className="upcoming-events" aria-labelledby="upcoming-events-heading">
-          <h2 id="upcoming-events-heading" className="upcoming-events-title">
-            Upcoming Events
-          </h2>
-          <div className="upcoming-events-grid">
-            {UPCOMING_EVENTS.map((ev) => (
-              <div key={ev.name} className="upcoming-event-card">
-                <span className="upcoming-event-date">{ev.date}</span>
-                <h3 className="upcoming-event-name">{ev.name}</h3>
-                <p className="upcoming-event-meta">{ev.venue}</p>
-                <p className="upcoming-event-meta">{ev.time}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-        )}
-
-        {EVENT_COMPLETED ? null : <AgmBanner agm={agm} navigateTo={navigateTo} />}
-
-        <footer className="landing-footer">
-          <div className="landing-footer-copy">© WMF Japan</div>
-          <div className="landing-footer-links">
-            <a href="mailto:info@wmfjapan.com">Contact</a>
-            {/* <button type="button" onClick={() => navigateTo(ZONE_UPGRADE_GUIDE_PATH)}>
-              Zone Upgrade &amp; Dinner Guide
-            </button>
-            <button type="button" onClick={() => navigateTo(SEAT_SELECTION_GUIDE_PATH)}>
-              Seat Selection Guide
-            </button> */}
-            <button type="button" onClick={() => navigateTo(TERMS_PATH)}>
-              Terms &amp; Conditions
-            </button>
-            <button type="button" onClick={() => navigateTo(PRIVACY_PATH)}>
-              Privacy Policy
-            </button>
-            <button type="button" onClick={() => navigateTo(CANCELLATION_PATH)}>
-              Cancellation Policy
-            </button>
-            <button type="button" onClick={() => navigateTo(ADMIN_LOGIN_PATH)}>
-              Admin Login
-            </button>
-          </div>
-        </footer>
-        <EventFooter />
-      </main>
-    </>
-  );
 }

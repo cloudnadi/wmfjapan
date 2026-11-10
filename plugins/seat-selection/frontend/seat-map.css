@@ -1,7 +1,7 @@
 /* ── Seat Selection Plugin: seat map styles ──────────────────────────────────
    Used by SeatMapSelector.jsx (registrant picker) and SeatMapManagement.jsx
    (admin screen). Colors/spacing reference the host's design tokens
-   (--nk-red, --amber, --nk-green, --border, --surface-2, --text-muted,
+   (--wmf-red, --amber, --wmf-green, --border, --surface-2, --text-muted,
    --text, --radius-sm, --border-hover, --amber-glow) with sane fallbacks, so
    this file renders reasonably even in a host that hasn't defined them, but
    still adopts the host's palette automatically when it has. */
@@ -37,8 +37,8 @@
 }
 
 .seat-swatch.zone1 {
-  border-color: var(--nk-red, #e53935);
-  background: var(--nk-red, #e53935);
+  border-color: var(--wmf-red, #e53935);
+  background: var(--wmf-red, #e53935);
 }
 
 .seat-swatch.zone2 {
@@ -52,8 +52,8 @@
 }
 
 .seat-swatch.regular {
-  border-color: var(--nk-green, #5db85c);
-  background: var(--nk-green, #5db85c);
+  border-color: var(--wmf-green, #5db85c);
+  background: var(--wmf-green, #5db85c);
 }
 
 .seat-swatch.selected {
@@ -213,7 +213,7 @@
 }
 
 .seat-map-seat.zone1 {
-  border-color: var(--nk-red, #e53935);
+  border-color: var(--wmf-red, #e53935);
   background: rgba(229, 57, 53, 0.25);
 }
 
@@ -228,7 +228,7 @@
 }
 
 .seat-map-seat.regular {
-  border-color: var(--nk-green, #5db85c);
+  border-color: var(--wmf-green, #5db85c);
   background: rgba(93, 184, 92, 0.18);
 }
 
@@ -321,12 +321,12 @@
 
 .seat-purchase-status.paid {
   background: rgba(93, 184, 92, 0.2);
-  color: var(--nk-green, #2e7d32);
+  color: var(--wmf-green, #2e7d32);
 }
 
 .seat-purchase-status.refund_requested {
   background: rgba(229, 57, 53, 0.15);
-  color: var(--nk-red, #c62828);
+  color: var(--wmf-red, #c62828);
 }
 
 .seat-purchase-status.cancelled {
@@ -345,7 +345,7 @@
 }
 
 .form-card.seat-purchase-card.status-paid {
-  border-left-color: var(--nk-green, #2e7d32);
+  border-left-color: var(--wmf-green, #2e7d32);
 }
 
 .form-card.seat-purchase-card.status-pending {
@@ -353,7 +353,7 @@
 }
 
 .form-card.seat-purchase-card.status-refund_requested {
-  border-left-color: var(--nk-red, #c62828);
+  border-left-color: var(--wmf-red, #c62828);
 }
 
 .form-card.seat-purchase-card.status-cancelled {

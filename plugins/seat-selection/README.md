@@ -202,8 +202,8 @@ picker component in your app). `SeatMapManagement` additionally takes
 `getEventSeats`, `blockEventSeat`, `unblockEventSeat` — your own functions
 for calling the admin routes above with your own auth.
 
-The CSS reads a handful of custom properties for theming (`--nk-red`,
-`--amber`, `--nk-green`, `--border`, `--surface-2`, `--text-muted`, `--text`,
+The CSS reads a handful of custom properties for theming (`--wmf-red`,
+`--amber`, `--wmf-green`, `--border`, `--surface-2`, `--text-muted`, `--text`,
 `--radius-sm`, `--border-hover`, `--amber-glow`) and falls back to sane
 defaults for any that aren't defined, so it renders reasonably even without
 a matching design system.

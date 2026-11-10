@@ -8,7 +8,7 @@ text, 3:1 for large text. Disabled controls are reported separately (exempt).
 Gradient / image backgrounds are approximated by their average color.
 
 Usage (needs `pip install playwright` and a Chromium):
-  cd frontend && npm run dev -- --port 5199      # mock mode: no backend needed
+  cd frontend && VITE_API_MOCK=true npm run dev -- --port 5199   # mock mode: no backend needed
   python3 scripts/contrast_audit.py              # exits 1 if anything fails
 
 Env: AUDIT_BASE (default http://localhost:5199), AUDIT_OUT (JSON output dir,
@@ -139,11 +139,10 @@ def mock_routes(pg):
         return ok({})
     pg.route(re.compile(r".*(/admin|/site-config|/events|/visits|/partners|/membership|/my|/register|/seat|/celebrity|/entry|/available)[^.]*$"), handle)
 
-PUBLIC = ["/", "/sponsors", "/terms", "/privacy", "/cancellation", "/sadhya-slot-guide", "/seat-selection-guide",
-          "/zone-upgrade-guide", "/check-in", "/seat-check-in", "/admin"]
+PUBLIC = ["/", "/events", "/signin", "/sponsors", "/terms", "/privacy", "/cancellation", "/check-in", "/seat-check-in", "/admin"]
 MEMBER_PAGES = [("/member/profile", "member"), ("/member/membership", "none"), ("/member/membership", "member"),
                 ("/member/membership", "renewed"), ("/member/membership", "pending"), ("/member/membership", "pending-failed"),
-                ("/my/registrations", "member"), ("/onam/register", "none"), ("/celebrity-dinner", "none"),
+                ("/my/registrations", "member"), ("/celebrity-dinner?event=sample_event", "none"),
                 ("/my/hall-seat-selection", "none"), ("/my/seat-upgrade", "none")]
 
 def run(theme):

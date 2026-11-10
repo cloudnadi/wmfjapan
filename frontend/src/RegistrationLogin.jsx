@@ -2,13 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import Navbar from "./Navbar";
 import { requestLoginOtp, verifyLoginOtp } from "./api";
 import { saveRegistrantSession } from "./registrantAuth";
+import { siteConfig } from "./siteConfig";
 
 const HOME_PATH = "/";
 const ADMIN_LOGIN_PATH = "/admin";
-const SEAT_SELECTION_GUIDE_PATH = "/seat-selection-guide";
-const ZONE_UPGRADE_GUIDE_PATH = "/zone-upgrade-guide";
 const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-const DEFAULT_REGISTER_URL = "https://www.wmfjapan.com/en/member/register";
+const DEFAULT_REGISTER_URL = siteConfig.memberRegisterUrl;
 
 /**
  * Email → OTP gate for the registration page. Step "email" collects the
@@ -19,7 +18,7 @@ export default function RegistrationLogin({
   navigateTo,
   onAuthenticated,
   title = "Sign in to register",
-  subtitle = "Onam Celebration 2026",
+  subtitle = siteConfig.name,
   description = "We'll email you a 6-digit verification code to access the registration form.",
 }) {
   const [stage, setStage] = useState("email"); // 'email' | 'otp'
@@ -122,7 +121,7 @@ export default function RegistrationLogin({
       <Navbar
         navigateTo={navigateTo}
       />
-      <main className="page-wrap onam-reg">
+      <main className="page-wrap regform-reg">
         <header className="event-header">
           <div className="banner-title">{title}</div>
           <div className="banner-sub-title">{subtitle}</div>

@@ -1,15 +1,8 @@
 import { useEffect, useState } from "react";
 import { getPublicPartners, getSiteConfig } from "./api";
 import Navbar from "./Navbar";
+import SiteFooter from "./SiteFooter";
 
-const HOME_PATH = "/";
-const ONAM_REGISTRATION_PATH = "/onam/register";
-const ADMIN_LOGIN_PATH = "/admin";
-const TERMS_PATH = "/terms";
-const PRIVACY_PATH = "/privacy";
-const CANCELLATION_PATH = "/cancellation";
-const SEAT_SELECTION_GUIDE_PATH = "/seat-selection-guide";
-const ZONE_UPGRADE_GUIDE_PATH = "/zone-upgrade-guide";
 
 export const TIER_ORDER = ["emerald", "platinum", "gold", "silver", "bronze"];
 
@@ -30,15 +23,6 @@ function TierBadge({ tier }) {
   );
 }
 
-function EventFooter() {
-  return (
-    <footer className="event-footer">
-      Host Your Event With Us
-      <br />
-      For bookings and inquiries, contact <a href="mailto:hello@cloudnadi.com">hello@cloudnadi.com</a>.
-    </footer>
-  );
-}
 
 function PartnerCard({ partner, showTier = false }) {
   const tier = partner.tier || "bronze";
@@ -151,31 +135,7 @@ export default function PartnersPage({ navigateTo }) {
           </div>
         )}
 
-        <footer className="landing-footer">
-          <div className="landing-footer-copy">© WMF Japan</div>
-          <div className="landing-footer-links">
-            <a href="mailto:info@wmfjapan.com">Contact</a>
-            {/* <button type="button" onClick={() => navigateTo(ZONE_UPGRADE_GUIDE_PATH)}>
-              Zone Upgrade &amp; Dinner Guide
-            </button>
-            <button type="button" onClick={() => navigateTo(SEAT_SELECTION_GUIDE_PATH)}>
-              Seat Selection Guide
-            </button> */}
-            <button type="button" onClick={() => navigateTo(TERMS_PATH)}>
-              Terms &amp; Conditions
-            </button>
-            <button type="button" onClick={() => navigateTo(PRIVACY_PATH)}>
-              Privacy Policy
-            </button>
-            <button type="button" onClick={() => navigateTo(CANCELLATION_PATH)}>
-              Cancellation Policy
-            </button>
-            <button type="button" onClick={() => navigateTo(ADMIN_LOGIN_PATH)}>
-              Admin Login
-            </button>
-          </div>
-        </footer>
-        <EventFooter />
+        <SiteFooter navigateTo={navigateTo} />
       </main>
     </>
   );

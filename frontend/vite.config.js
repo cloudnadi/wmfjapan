@@ -8,6 +8,12 @@ import react from "@vitejs/plugin-react";
 // plugin's pages by name instead of reaching into ../../plugins by hand.
 export default defineConfig({
   plugins: [react()],
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./src/__tests__/setup.js"],
+    include: ["src/__tests__/**/*.test.{js,jsx}"],
+    restoreMocks: true,
+  },
   resolve: {
     alias: {
       // The seat-selection plugin lives outside frontend/ (plugins/seat-selection/frontend)

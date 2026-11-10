@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import EventShell, { ErrorBox, Loading, StatusPill } from "./EventShell";
 import { getRegistrationByToken, payRegistration } from "./eventsApi";
 import { formatJpy, formatJst, t } from "./i18n";
+import { isSignedIn } from "./auth/session";
 import { isRegistrantAuthenticated } from "./registrantAuth";
 
 const POLL_MS = 5000;
@@ -122,7 +123,7 @@ export default function EventRegistered({ navigateTo, slug }) {
         </dl>
         <div className="btn-row">
           {ev && <button type="button" className="button secondary" onClick={() => navigateTo(`/events/${ev.slug}`)}>{t("pub.done.eventPage")}</button>}
-          {reg.memberEmail && isRegistrantAuthenticated() && (
+          {reg.memberEmail && (isSignedIn() || isRegistrantAuthenticated()) && (
             <button type="button" className="button secondary" onClick={() => navigateTo("/my/events")}>{t("pub.done.myRegistrations")}</button>
           )}
           <button type="button" className="button secondary" onClick={() => window.print()}>{t("pub.done.print")}</button>

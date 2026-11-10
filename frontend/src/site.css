@@ -1,0 +1,71 @@
+/* Shared site chrome added for the events site: accessibility helpers, account/sign-in UI, home page. */
+
+/* Keyboard focus is always visible, on every theme. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--amber, #f5b942);
+  outline-offset: 2px;
+}
+
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -48px;
+  z-index: 1000;
+  padding: 10px 16px;
+  border-radius: 6px;
+  background: var(--surface-2, #fff);
+  color: var(--text, #111);
+  border: 2px solid var(--amber, #f5b942);
+  font-weight: 700;
+  text-decoration: none;
+}
+.skip-link:focus { top: 8px; }
+
+/* Links in the nav share the button look. */
+a.wmf-nav-link { text-decoration: none; display: inline-block; }
+a.wmf-nav-link:hover { color: var(--text); }
+
+[tabindex="-1"]:focus { outline: none; }
+
+/* ── Sign-in / account ─────────────────────────────────────────────────── */
+.auth-panel { max-width: 460px; }
+.auth-panel .auth-field { margin: 14px 0; display: flex; flex-direction: column; gap: 6px; }
+.auth-panel .auth-field label { font-weight: 600; }
+.auth-panel input[type="email"],
+.auth-panel input[type="password"],
+.auth-panel input[type="text"] {
+  width: 100%; box-sizing: border-box; padding: 11px 12px; font: inherit; color: var(--text);
+  background: var(--surface, transparent); border: 1px solid var(--border); border-radius: 8px;
+}
+.auth-panel input[aria-invalid="true"] { border-color: var(--wmf-red, #c0392b); }
+.auth-panel .auth-hint { margin: 0; font-size: 0.85rem; color: var(--text-muted); }
+.auth-panel .auth-show { display: inline-flex; gap: 8px; align-items: center; font-weight: 400; font-size: 0.9rem; color: var(--text-muted); }
+.auth-panel .auth-links { margin: 16px 0 0; color: var(--text-muted); }
+.auth-panel .auth-social { margin-top: 18px; display: grid; gap: 10px; }
+.auth-panel .auth-or { margin: 0; text-align: center; color: var(--text-muted); }
+.auth-panel .auth-guest { margin: 18px 0 0; padding-top: 14px; border-top: 1px solid var(--border); }
+.auth-panel .field-error { color: var(--wmf-red, #c0392b); margin: 0; font-size: 0.9rem; }
+.success-banner { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); }
+
+/* ── Home ──────────────────────────────────────────────────────────────── */
+.home-hero { padding: 104px 20px 32px; max-width: 1120px; margin: 0 auto; }
+.home-hero h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 1.1; margin: 0 0 12px; }
+.home-hero p { max-width: 62ch; color: var(--text-muted); font-size: 1.1rem; }
+.home-section { max-width: 1120px; margin: 0 auto; padding: 8px 20px 32px; }
+.home-section h2 { margin: 0 0 16px; }
+.home-membership { border: 1px solid var(--border); border-radius: 16px; padding: 20px; background: var(--surface-2); }
+.site-footer { max-width: 1120px; margin: 24px auto 0; padding: 20px; border-top: 1px solid var(--border);
+  display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: space-between; color: var(--text-muted); }
+.site-footer-links { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.site-footer a, .site-footer button { background: none; border: 0; padding: 0; font: inherit; color: var(--text-muted); text-decoration: underline; cursor: pointer; }
+.site-footer a:hover, .site-footer button:hover { color: var(--text); }
+
+@media (max-width: 640px) {
+  .home-hero { padding-top: 88px; }
+  .site-footer { flex-direction: column; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+.wmf-nav-wordmark { font-weight: 800; font-size: 1.2rem; letter-spacing: -0.01em; color: var(--text); }

@@ -1,13 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DynamicForm from "./DynamicForm";
 import EventShell, { ErrorBox, Loading } from "./EventShell";
-import RegistrationLogin from "./RegistrationLogin";
+import AuthPanel from "./auth/AuthPanel";
+import { tabStore } from "./auth/storage";
 import { registerForEvent, getPublicEvent, uploadEventFile } from "./eventsApi";
+import { getEventState, normalizeEvent } from "./eventModel";
 import { visibleFields } from "./formLogic";
 import { formatJpy, formatJst, t } from "./i18n";
-import { clearRegistrantSession, getRegistrantToken } from "./registrantAuth";
 
-const CORE_PREFILL = { fullName: "name", email: "email" };
+// A checkout in progress is kept for the length of this tab visit so that it survives the full-page trip to a
+// social sign-in provider. It holds ticket counts and the answers typed so far, nothing else, and is removed
+// when it is restored, when the registration is submitted, or after 30 minutes.
+const DRAFT_TTL_MS = 30 * 60 * 1000;
+const draftKey = (slug) => `wmf-checkout.${slug}`;
+
+export function saveCheckoutDraft(slug, draft) {
+  tabStore.set(draftKey(slug), JSON.stringify({ v: 1, savedAt: Date.now(), ...draft }));
+}
+
+export function takeCheckoutDraft(slug) {
+  const raw = tabStore.get(draftKey(slug));
+  tabStore.remove(draftKey(slug));
+  try {
+    const draft = raw ? JSON.parse(raw) : null;
+    return draft && draft.v === 1 && Date.now() - draft.savedAt < DRAFT_TTL_MS ? draft : null;
+  } catch {
+    return null;
+  }
+}
 
 function newKey() {
   return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -35,20 +55,36 @@ export default function EventRegister({ navigateTo, slug }) {
   const [method, setMethod] = useState("");
   const [busy, setBusy] = useState(false);
   const [guest, setGuest] = useState(false);
+  const [restored, setRestored] = useState(false);
+  const resumeStep = useRef("tickets");
+  const draftApplied = useRef(false);
   const idempotencyKey = useRef(newKey());
   const headingRef = useRef(null);
 
   const load = useCallback(async () => {
     try {
       const d = await getPublicEvent(slug);
-      if (d.legacy) return navigateTo(d.event.legacyPath || "/events", { replace: true });
-      setEv(d.event);
+      if (d.legacy) return navigateTo(`/events/${slug}`, { replace: true });
+      const event = normalizeEvent(d.event);
+      setEv(event);
       setAnswers((a) => ({
         ...a,
-        ...(d.event.viewer.loggedIn ? { email: d.event.viewer.email, fullName: a.fullName || d.event.viewer.name } : {}),
+        ...(event.viewer.loggedIn ? { email: event.viewer.email, fullName: a.fullName || event.viewer.name } : {}),
       }));
+      if (!draftApplied.current) {
+        draftApplied.current = true;
+        const draft = takeCheckoutDraft(slug);
+        if (draft) {
+          const known = new Set(event.tickets.map((x) => x.ticketTypeId));
+          setQty(Object.fromEntries(Object.entries(draft.qty || {}).filter(([id, n]) => known.has(id) && Number(n) > 0)));
+          setAnswers((a) => ({ ...(draft.answers || {}), ...a, ...(event.viewer.loggedIn ? { email: event.viewer.email } : {}) }));
+          setGuest(!!draft.guest);
+          if (event.viewer.loggedIn || draft.guest) setStep(["tickets", "details", "review"].includes(draft.step) ? draft.step : "tickets");
+          setRestored(true);
+        }
+      }
     } catch (e) {
-      setError(e.status === 404 ? t("pub.notFound") : e.message);
+      setError(e.status === 404 ? t("pub.notFound") : e.message || t("pub.error.generic"));
     }
     return undefined;
   }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -64,42 +100,81 @@ export default function EventRegister({ navigateTo, slug }) {
   const total = lines.reduce((sum, l) => sum + l.yourPriceJpy * l.qty, 0);
   const seats = lines.reduce((sum, l) => sum + l.qty, 0);
 
-  if (error) return <EventShell navigateTo={navigateTo}><ErrorBox message={error} /></EventShell>;
+  // Only a failure to load the event replaces the page. A submit error is shown above the form so nothing typed is lost.
+  if (error && !ev) {
+    return (
+      <EventShell navigateTo={navigateTo}>
+        <ErrorBox message={error} />
+        <button type="button" className="button secondary" onClick={() => navigateTo(`/events/${slug}`)}>{t("pub.back")}</button>
+      </EventShell>
+    );
+  }
   if (!ev) return <EventShell navigateTo={navigateTo}><Loading /></EventShell>;
 
   const r = ev.registration;
+  const caps = ev.capabilities;
+  const state = getEventState(ev);
   const back = () => navigateTo(`/events/${slug}`);
 
-  // Not open / not allowed: explain, don't show a form.
-  if (r.window !== "open" || (!r.allowed && !["login_required"].includes(r.reason))) {
-    const message = r.window === "not_open" ? t("pub.reg.opensAt", { when: ev.registrationOpensAt ? formatJst(ev.registrationOpensAt) : "" })
-      : r.window === "closed" ? t("pub.registrationClosed")
-      : t(r.reason === "members_only" ? "pub.reg.membersOnlyBlocked" : "pub.reg.renewalBlocked");
+  // Not open / sold out / cancelled / not allowed: explain, don't show a form.
+  if (["cancelled", "unavailable", "closed", "not_open", "sold_out", "members_only", "renewal_required"].includes(state)) {
+    const messages = {
+      cancelled: t("pub.state.cancelled"),
+      unavailable: t("pub.state.registrationUnavailable"),
+      closed: t("pub.registrationClosed"),
+      not_open: t("pub.reg.opensAt", { when: ev.registrationOpensAt ? formatJst(ev.registrationOpensAt) : "" }),
+      sold_out: t("pub.state.soldOut"),
+      members_only: t("pub.reg.membersOnlyBlocked"),
+      renewal_required: t("pub.reg.renewalBlocked"),
+    };
     return (
       <EventShell navigateTo={navigateTo} accent={ev.design?.accentColor}>
         <h1>{ev.title}</h1>
-        <p role="alert">{message}</p>
+        <p role="alert">{messages[state]}</p>
         {r.renewUrl && <button type="button" className="button primary" onClick={() => navigateTo("/member/membership")}>{t("pub.reg.renewNow")}</button>}
         <button type="button" className="button secondary" onClick={back}>{t("pub.back")}</button>
       </EventShell>
     );
   }
 
-  const needLogin = !loggedIn && (ev.access.membersOnly || ev.access.guestsAllowed === false);
-  if (step === "login" || (step === "start" && needLogin)) {
+  // Guest checkout can be switched off per event; members-only events always need an account.
+  const needLogin = !loggedIn && (ev.access.membersOnly || !caps.guestCheckout.enabled);
+  const draftNow = () => ({ qty, answers, step: step === "login" ? resumeStep.current : step, guest });
+  const afterSignIn = async () => {
+    await load();
+    setGuest(false);
+    setError("");
+    setStep(["tickets", "details", "review"].includes(resumeStep.current) ? resumeStep.current : "tickets");
+  };
+  const openSignIn = () => {
+    resumeStep.current = ["tickets", "details", "review"].includes(step) ? step : "tickets";
+    setStep("login");
+  };
+  if (!loggedIn && (step === "login" || (step === "start" && needLogin))) {
     return (
-      <RegistrationLogin
-        navigateTo={navigateTo}
-        title={t("pub.login.title")}
-        subtitle={ev.title}
-        description={t("pub.login.description")}
-        onAuthenticated={async () => { await load(); setStep("tickets"); }}
-      />
+      <EventShell navigateTo={navigateTo} accent={ev.design?.accentColor}>
+        <h1>{ev.title}</h1>
+        <ErrorBox message={error} />
+        {needLogin && <p className="pe-note" role="status">{t(ev.access.membersOnly ? "pub.reg.membersOnlySignIn" : "pub.start.signInRequired")}</p>}
+        {restored && <p className="pe-note" role="status">{t("pub.start.draftRestored")}</p>}
+        <AuthPanel
+          returnTo={`/events/${slug}/register`}
+          onAuthenticated={afterSignIn}
+          onGuest={needLogin ? undefined : () => { setGuest(true); setError(""); setStep(resumeStep.current); }}
+          beforeSocialRedirect={() => saveCheckoutDraft(slug, draftNow())}
+        />
+      </EventShell>
     );
   }
 
-  const startGuest = () => { setGuest(true); setStep("tickets"); };
   const hasMemberDiscount = ev.tickets.some((x) => x.memberPriceJpy < x.nonMemberPriceJpy);
+  const startGuest = () => { setGuest(true); setStep("tickets"); };
+  const signInPrompt = !loggedIn && (
+    <p className="pe-note">
+      {hasMemberDiscount && <>{t("pub.reg.memberDiscountHint")} </>}
+      <button type="button" className="pe-link" onClick={openSignIn}>{t("pub.start.signInAccount")}</button>
+    </p>
+  );
 
   const toDetails = () => {
     if (seats === 0) return setFieldErrors({ tickets: t("pub.tickets.choose") });
@@ -124,15 +199,18 @@ export default function EventRegister({ navigateTo, slug }) {
         answers, paymentMethod: total > 0 ? method : undefined, idempotencyKey: idempotencyKey.current,
       });
       const reg = res.registration;
+      takeCheckoutDraft(slug); // nothing left to restore
       if (reg.status === "pending_payment" && res.payment.checkoutUrl) {
         window.location.assign(res.payment.checkoutUrl);
         return;
       }
       navigateTo(`/events/${slug}/registered?reg=${encodeURIComponent(reg.registrationId)}&token=${encodeURIComponent(reg.checkInToken)}`, { replace: true });
     } catch (e) {
-      if (e.status === 401) {
-        clearRegistrantSession();
+      if (e.status === 401 && e.code !== "email_unverified") {
+        // The session ended while the form was open: keep everything typed, ask for a new sign-in, then resume here.
+        resumeStep.current = step === "start" ? "tickets" : step;
         setError(e.message);
+        await load();
         setStep("login");
       } else if (e.status === 400 && Object.keys(e.fields || {}).length) {
         setFieldErrors(e.fields);
@@ -171,9 +249,10 @@ export default function EventRegister({ navigateTo, slug }) {
             <>
               <p>{t("pub.start.choose")}</p>
               <div className="btn-row">
-                <button type="button" className="button primary" onClick={() => setStep("login")}>{t("pub.start.signIn")}</button>
+                <button type="button" className="button primary" onClick={openSignIn}>{t("pub.start.signInAccount")}</button>
                 <button type="button" className="button secondary" onClick={startGuest}>{t("pub.start.guest")}</button>
               </div>
+              <p className="pe-note">{t("pub.start.guestNote")}</p>
               {hasMemberDiscount && <p className="pe-note">{t("pub.reg.memberDiscountHint")}</p>}
               <p className="pe-note"><button type="button" className="pe-link" onClick={() => navigateTo("/member/membership")}>{t("pub.reg.joinMembership")}</button></p>
             </>
@@ -194,7 +273,8 @@ export default function EventRegister({ navigateTo, slug }) {
             <p className="pe-note" role="status">{t("pub.tickets.expired")}{" "}
               <button type="button" className="pe-link" onClick={() => navigateTo("/member/membership")}>{t("pub.reg.renewNow")}</button></p>
           )}
-          {guest && hasMemberDiscount && <p className="pe-note">{t("pub.reg.memberDiscountHint")}</p>}
+          {restored && <p className="pe-note" role="status">{t("pub.start.draftRestored")}</p>}
+          {guest && signInPrompt}
           {r.waitlist && <p className="pe-note" role="status">{t("pub.reg.full")}</p>}
           <ul className="pe-tickets">
             {ev.tickets.map((x) => {

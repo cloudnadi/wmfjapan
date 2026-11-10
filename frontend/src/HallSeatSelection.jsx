@@ -13,8 +13,6 @@ import { getRegistrantEmail } from "./registrantAuth";
 
 const HOME_PATH = "/";
 const MY_REGISTRATIONS_PATH = "/my/registrations";
-const SEAT_SELECTION_GUIDE_PATH = "/seat-selection-guide";
-const ZONE_UPGRADE_GUIDE_PATH = "/zone-upgrade-guide";
 
 // Celebrity Event seat purchases apply only to these registration options.
 const SEATED_OPTIONS = ["event", "combo"];
@@ -22,7 +20,7 @@ const SEATED_OPTIONS = ["event", "combo"];
 // Set by MyRegistrations before navigating here, so a click from a specific
 // registration's card lands on that registration rather than making the
 // visitor pick again from a list. Read once and cleared on mount.
-const PREFERRED_REGISTRATION_KEY = "nk-seat-selection-registration-id";
+const PREFERRED_REGISTRATION_KEY = "wmf-seat-selection-registration-id";
 
 const PAYMENT_METHOD_LABELS = { paypay: "PayPay", square: "Credit/Debit Card (Square)", bank: "Bank Transfer" };
 
@@ -367,7 +365,7 @@ export default function HallSeatSelection({ navigateTo, onLogout }) {
   return (
     <>
       {nav}
-      <main className="page-wrap onam-reg">
+      <main className="page-wrap regform-reg">
         <header className="event-header">
           <div className="banner-title">💺 Select Your Seats</div>
           <div className="banner-sub-title">{email ? `Welcome, ${email}` : "Pick and pay for your seats"}</div>
@@ -569,7 +567,7 @@ export default function HallSeatSelection({ navigateTo, onLogout }) {
               {selectedRegistration && wizardOpen && wizardStep === "review" && (
                 <>
                   <div className="section-label">Order Summary</div>
-                  <div className="onam-review-grid">
+                  <div className="regform-review-grid">
                     {estimate.breakdown.map((row) => (
                       <div key={row.category} style={{ gridColumn: "1 / -1" }}>
                         <div className="btn-row" style={{ justifyContent: "space-between" }}>

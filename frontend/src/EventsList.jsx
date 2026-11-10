@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import EventShell, { ErrorBox, Loading } from "./EventShell";
 import { listPublicEvents } from "./eventsApi";
+import { normalizeCapabilities } from "./eventModel";
 import { formatJst, t } from "./i18n";
 
 function dateParts(iso) {
@@ -12,7 +13,8 @@ function dateParts(iso) {
 }
 
 export function EventCard({ ev, navigateTo }) {
-  const open = () => (ev.legacyPath ? navigateTo(ev.legacyPath) : navigateTo(`/events/${ev.slug}`));
+  const open = () => navigateTo(`/events/${ev.slug}`);
+  const caps = normalizeCapabilities(ev);
   const place = [ev.location?.venueName, ev.location?.address].filter(Boolean).join(", ");
   const date = dateParts(ev.startsAt);
   return (
@@ -29,7 +31,8 @@ export function EventCard({ ev, navigateTo }) {
         {ev.shortDescription && <p className="pe-card-text">{ev.shortDescription}</p>}
         <p className="pe-badges">
           {ev.membersOnly && <span className="pe-pill pe-pill-accent">{t("pub.membersOnly")}</span>}
-          {!ev.membersOnly && ev.guestsAllowed === false && <span className="pe-pill pe-pill-accent">{t("pub.signInRequiredBadge")}</span>}
+          {!ev.membersOnly && !caps.guestCheckout.enabled && <span className="pe-pill pe-pill-accent">{t("pub.signInRequiredBadge")}</span>}
+          {["cancelled", "canceled", "archived"].includes(ev.status) && <span className="pe-pill pe-pill-closed">{t("pub.state.cancelled")}</span>}
           {ev.status === "closed" && <span className="pe-pill pe-pill-closed">{t("pub.registrationClosed")}</span>}
         </p>
         <button type="button" className="button primary pe-card-cta" onClick={open}>{t("pub.viewEvent")}</button>
@@ -43,18 +46,19 @@ export default function EventsList({ navigateTo }) {
   const [category, setCategory] = useState("");
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setData(null);
     setError("");
     listPublicEvents(filter, category)
-      .then((d) => !cancelled && setData(d))
-      .catch((e) => !cancelled && setError(e.message));
+      .then((d) => !cancelled && setData({ events: [], categories: [], ...d }))
+      .catch((e) => !cancelled && setError(e.message || t("pub.error.generic")));
     return () => {
       cancelled = true;
     };
-  }, [filter, category]);
+  }, [filter, category, attempt]);
 
   return (
     <EventShell navigateTo={navigateTo}>
@@ -81,6 +85,7 @@ export default function EventsList({ navigateTo }) {
         )}
       </div>
       <ErrorBox message={error} />
+      {error && <button type="button" className="button secondary" onClick={() => setAttempt((n) => n + 1)}>{t("pub.retry")}</button>}
       {!data && !error && <Loading />}
       {data && data.events.length === 0 && <p>{t(filter === "past" ? "pub.list.nonePast" : "pub.list.noneUpcoming")}</p>}
       {data && data.events.length > 0 && (

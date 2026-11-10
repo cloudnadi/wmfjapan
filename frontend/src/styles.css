@@ -29,9 +29,9 @@
 /* Dark theme (default) — values pulled from beta.wmfjapan.com */
 :root,
 [data-theme="dark"] {
-  --nk-green: #5db85c;
-  --nk-green-deep: #3a8c39;
-  --nk-red: #e53935;
+  --wmf-green: #5db85c;
+  --wmf-green-deep: #3a8c39;
+  --wmf-red: #e53935;
   --amber: #f5a623;
   --amber-glow: rgba(245, 166, 35, 0.15);
   --cta-text: #0c0f0c;
@@ -50,7 +50,7 @@
 
   /* Text-safe variants of the accent colors (all ≥ 4.5:1 on this theme's surfaces) */
   --amber-text: var(--amber);
-  --green-text: var(--nk-green);
+  --green-text: var(--wmf-green);
   --success-text: #8fe08e;
   --danger-text: #ff8a85;
   --btn-text: #0a0d0a;
@@ -69,9 +69,9 @@
 
 /* Light theme — NK's [data-theme=light] palette */
 [data-theme="light"] {
-  --nk-green: #3a8c39;
-  --nk-green-deep: #2f7530;
-  --nk-red: #c62828;
+  --wmf-green: #3a8c39;
+  --wmf-green-deep: #2f7530;
+  --wmf-red: #c62828;
   --amber: #e8950a;
   --amber-glow: rgba(232, 149, 10, 0.12);
   --cta-text: #151a15;
@@ -114,9 +114,9 @@
 :root {
   --navy: var(--surface-2);
   --navy-mid: var(--surface-3);
-  --red: var(--nk-red);
-  --green: var(--nk-green);
-  --green-deep: var(--nk-green-deep);
+  --red: var(--wmf-red);
+  --green: var(--wmf-green);
+  --green-deep: var(--wmf-green-deep);
   --gold: var(--amber);
   --gold-lite: var(--text);
   --sky: rgba(93, 184, 92, 0.45);
@@ -126,7 +126,7 @@
   --soft: var(--border);
   --muted: var(--text-muted);
   --ink: var(--text);
-  --accent: var(--nk-green);
+  --accent: var(--wmf-green);
   --accent-light: rgba(93, 184, 92, 0.18);
 }
 
@@ -153,7 +153,7 @@ body {
 }
 
 /* ===== NK-style fixed navbar ===== */
-.nk-nav {
+.wmf-nav {
   position: fixed;
   top: 0;
   left: 0;
@@ -167,7 +167,7 @@ body {
   transition: background 0.25s ease, border-color 0.25s ease;
 }
 
-.nk-nav-inner {
+.wmf-nav-inner {
   max-width: var(--content-width);
   height: 100%;
   margin: 0 auto;
@@ -178,7 +178,7 @@ body {
   gap: 16px;
 }
 
-.nk-nav-logo {
+.wmf-nav-logo {
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -193,22 +193,22 @@ body {
   flex-shrink: 0;
 }
 
-.nk-nav-logo img {
+.wmf-nav-logo img {
   height: 60px;
   object-fit: cover;
 }
 
-.nk-nav-logo span {
+.wmf-nav-logo span {
   font-size: 1.1rem;
 }
 
-.nk-nav-links {
+.wmf-nav-links {
   display: flex;
   align-items: center;
   gap: 26px;
 }
 
-.nk-nav-link {
+.wmf-nav-link {
   border: none;
   background: none;
   cursor: pointer;
@@ -221,11 +221,11 @@ body {
   transition: color 0.18s ease;
 }
 
-.nk-nav-link:hover {
+.wmf-nav-link:hover {
   color: var(--text);
 }
 
-.nk-nav-cta {
+.wmf-nav-cta {
   border: none;
   background: var(--amber);
   color: var(--cta-text);
@@ -239,11 +239,11 @@ body {
   transition: filter 0.18s ease;
 }
 
-.nk-nav-cta:hover {
+.wmf-nav-cta:hover {
   filter: brightness(1.1);
 }
 
-.nk-nav-actions {
+.wmf-nav-actions {
   display: inline-flex;
   align-items: center;
   gap: 14px;
@@ -251,7 +251,7 @@ body {
 }
 
 /* Theme toggle switch (moon | track | sun) */
-.nk-theme-toggle {
+.wmf-theme-toggle {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -261,12 +261,12 @@ body {
   padding: 0;
 }
 
-.nk-theme-icon {
+.wmf-theme-icon {
   font-size: 0.85rem;
   line-height: 1;
 }
 
-.nk-theme-track {
+.wmf-theme-track {
   position: relative;
   width: 36px;
   height: 20px;
@@ -277,7 +277,7 @@ body {
   transition: background 0.2s ease;
 }
 
-.nk-theme-knob {
+.wmf-theme-knob {
   position: absolute;
   top: 1px;
   left: 1px;
@@ -288,11 +288,11 @@ body {
   transition: transform 0.2s ease;
 }
 
-.nk-theme-track.light .nk-theme-knob {
+.wmf-theme-track.light .wmf-theme-knob {
   transform: translateX(16px);
 }
 
-.nk-menu-toggle {
+.wmf-menu-toggle {
   display: none;
   width: 34px;
   height: 34px;
@@ -308,15 +308,15 @@ body {
 }
 
 @media (max-width: 768px) {
-  .nk-nav-inner {
+  .wmf-nav-inner {
     padding: 0 1.25rem;
   }
 
-  .nk-menu-toggle {
+  .wmf-menu-toggle {
     display: inline-flex;
   }
 
-  .nk-nav-links {
+  .wmf-nav-links {
     position: absolute;
     top: 72px;
     left: 0;
@@ -333,18 +333,18 @@ body {
     display: none;
   }
 
-  .nk-nav-links.open {
+  .wmf-nav-links.open {
     display: flex;
   }
 
-  .nk-nav-link {
+  .wmf-nav-link {
     padding: 10px 4px;
     font-size: 1rem;
     text-align: left;
     border-bottom: 1px solid var(--border);
   }
 
-  .nk-nav-cta {
+  .wmf-nav-cta {
     margin-top: 8px;
     text-align: center;
   }
@@ -352,7 +352,7 @@ body {
 
 /* Hide items intended only for the mobile hamburger menu */
 @media (min-width: 769px) {
-  .nk-nav-link--mobile-only {
+  .wmf-nav-link--mobile-only {
     display: none;
   }
 }
@@ -430,7 +430,7 @@ body {
   width: 56px;
   height: 3px;
   border-radius: 3px;
-  background: linear-gradient(90deg, var(--nk-green), var(--amber));
+  background: linear-gradient(90deg, var(--wmf-green), var(--amber));
   margin: 14px 0 4px;
 }
 
@@ -462,7 +462,7 @@ body {
 .event-info-box {
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-left: 2px solid var(--nk-green);
+  border-left: 2px solid var(--wmf-green);
   border-radius: var(--radius-sm);
   padding: 14px 16px;
 }
@@ -516,7 +516,7 @@ body {
   border-radius: var(--radius-sm);
   font-size: 12px;
   line-height: 1.5;
-  border-left: 2px solid var(--nk-green);
+  border-left: 2px solid var(--wmf-green);
 }
 
 .form-card {
@@ -626,7 +626,7 @@ body {
 }
 
 /* ── Method toggle: a horizontal, row-based selectable pair — deliberately
-   not the onam-option-card shape, so a binary choice doesn't read as a
+   not the regform-option-card shape, so a binary choice doesn't read as a
    second grid of the zone-picker cards immediately above it. ── */
 
 .method-toggle-group {
@@ -655,7 +655,7 @@ body {
 }
 
 .method-toggle-option.selected {
-  border-color: var(--nk-green);
+  border-color: var(--wmf-green);
   background: linear-gradient(180deg, rgba(93, 184, 92, 0.16) 0%, rgba(93, 184, 92, 0.05) 100%);
   box-shadow: 0 0 0 2px rgba(93, 184, 92, 0.16);
 }
@@ -703,8 +703,8 @@ body {
 }
 
 .method-toggle-option.selected .method-toggle-check {
-  border-color: var(--nk-green);
-  background: var(--nk-green) radial-gradient(circle, #0a0d0a 0 4px, transparent 4px);
+  border-color: var(--wmf-green);
+  background: var(--wmf-green) radial-gradient(circle, #0a0d0a 0 4px, transparent 4px);
 }
 
 .field input::placeholder {
@@ -714,7 +714,7 @@ body {
 .field input:not([type="checkbox"]):not([type="radio"]):focus,
 .field select:focus {
   outline: none;
-  border-color: var(--nk-green);
+  border-color: var(--wmf-green);
   box-shadow: 0 0 0 3px rgba(93, 184, 92, 0.18);
 }
 
@@ -727,7 +727,7 @@ body {
 
 .field input.input-invalid,
 .field select.input-invalid {
-  border-color: var(--nk-red);
+  border-color: var(--wmf-red);
   box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.16);
 }
 
@@ -748,14 +748,14 @@ body {
   margin: -10px 0 0;
 }
 
-.onam-adult-emails {
+.regform-adult-emails {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.onam-adult-member {
-  color: var(--nk-green, #3d7258);
+.regform-adult-member {
+  color: var(--wmf-green, #3d7258);
   font-weight: 600;
 }
 
@@ -765,7 +765,7 @@ body {
   margin: 28px 0;
 }
 
-.onam-info-callout {
+.regform-info-callout {
   margin: 0 0 14px;
   padding: 12px 14px;
   border: 1px solid rgba(245, 166, 35, 0.34);
@@ -777,7 +777,7 @@ body {
   line-height: 1.5;
 }
 
-.onam-info-callout strong {
+.regform-info-callout strong {
   color: var(--amber-text);
 }
 
@@ -854,7 +854,7 @@ body {
 }
 
 .counter-btn:hover {
-  background: var(--nk-green);
+  background: var(--wmf-green);
   color: #0c0f0c;
 }
 
@@ -895,9 +895,9 @@ body {
 .btn-primary {
   flex: 1;
   padding: 15px 28px;
-  background: linear-gradient(180deg, var(--nk-green) 0%, var(--nk-green-deep) 100%);
+  background: linear-gradient(180deg, var(--wmf-green) 0%, var(--wmf-green-deep) 100%);
   color: #0a0d0a;
-  border: 1px solid var(--nk-green-deep);
+  border: 1px solid var(--wmf-green-deep);
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-family: var(--font-ui);
@@ -1015,7 +1015,7 @@ body {
 .success-card {
   text-align: center;
   padding: 52px 36px;
-  border-top: 2px solid var(--nk-green);
+  border-top: 2px solid var(--wmf-green);
 }
 
 .success-icon {
@@ -1023,7 +1023,7 @@ body {
   height: 68px;
   margin: 0 auto 18px;
   border-radius: 50%;
-  border: 2px solid var(--nk-green);
+  border: 2px solid var(--wmf-green);
   background: rgba(93, 184, 92, 0.12);
   display: flex;
   align-items: center;
@@ -1111,7 +1111,7 @@ body {
 
 .admin-login .field textarea:focus {
   outline: none;
-  border-color: var(--nk-green);
+  border-color: var(--wmf-green);
   box-shadow: 0 0 0 3px rgba(93, 184, 92, 0.18);
 }
 
@@ -1181,8 +1181,8 @@ body {
 
 .admin-login .admin-access-link:hover:not(:disabled) {
   color: #0c0f0c;
-  background: var(--nk-green);
-  border-color: var(--nk-green);
+  background: var(--wmf-green);
+  border-color: var(--wmf-green);
 }
 
 .admin-login .admin-access-link:disabled {
@@ -1199,9 +1199,9 @@ body {
 /* Use registration-form button styling for admin auth flows */
 .admin-login .button.primary {
   padding: 15px 28px;
-  background: linear-gradient(180deg, var(--nk-green) 0%, var(--nk-green-deep) 100%);
+  background: linear-gradient(180deg, var(--wmf-green) 0%, var(--wmf-green-deep) 100%);
   color: #0a0d0a;
-  border: 1px solid var(--nk-green-deep);
+  border: 1px solid var(--wmf-green-deep);
   border-radius: var(--radius-sm);
   font-family: var(--font-ui);
   font-size: 13px;
@@ -1286,7 +1286,7 @@ body {
 }
 
 .admin-tab.active {
-  background: var(--nk-green);
+  background: var(--wmf-green);
   color: #0c0f0c;
 }
 
@@ -1364,7 +1364,7 @@ body {
 
 .partner-form-panel .field textarea:focus {
   outline: none;
-  border-color: var(--nk-green);
+  border-color: var(--wmf-green);
   box-shadow: 0 0 0 3px rgba(93, 184, 92, 0.18);
 }
 
@@ -1629,7 +1629,7 @@ body {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--nk-green), var(--amber));
+  background: linear-gradient(90deg, var(--wmf-green), var(--amber));
 }
 
 .partner-card-actions .button {
@@ -1773,7 +1773,7 @@ body {
 }
 
 .registration-report-metric.positive {
-  border-left-color: var(--nk-green);
+  border-left-color: var(--wmf-green);
 }
 
 .registration-report-metric.positive strong {
@@ -1905,7 +1905,7 @@ body {
 
 .search-input:focus {
   outline: none;
-  border-color: var(--nk-green);
+  border-color: var(--wmf-green);
   box-shadow: 0 0 0 3px rgba(93, 184, 92, 0.18);
 }
 
@@ -1923,9 +1923,9 @@ body {
 }
 
 .button.primary {
-  background: linear-gradient(180deg, var(--nk-green) 0%, var(--nk-green-deep) 100%);
+  background: linear-gradient(180deg, var(--wmf-green) 0%, var(--wmf-green-deep) 100%);
   color: #0a0d0a;
-  border: 1px solid var(--nk-green-deep);
+  border: 1px solid var(--wmf-green-deep);
 }
 
 .button.primary:hover:not(:disabled) {
@@ -2211,12 +2211,12 @@ body {
 }
 
 .home-hero-links button:hover {
-  background: var(--nk-green);
+  background: var(--wmf-green);
   color: #0c0f0c;
 }
 
 .admin-embedded-panel {
-  border-top: 2px solid var(--nk-green);
+  border-top: 2px solid var(--wmf-green);
 }
 
 .admin-embedded-heading {
@@ -2646,7 +2646,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--nk-green);
+  background: var(--wmf-green);
   color: #0c0f0c;
   border-radius: 999px;
   min-height: 40px;
@@ -3318,14 +3318,14 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
 }
 
 /* ============================================================
-   Onam Celebration 2026 — multi-step registration form
+   Multi-step registration form (original pipeline)
    ============================================================ */
-.onam-reg {
+.regform-reg {
   max-width: 900px;
 }
 
 /* ── Stepper ── */
-.onam-stepper {
+.regform-stepper {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -3336,7 +3336,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   border-top: none;
 }
 
-.onam-step {
+.regform-step {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -3346,7 +3346,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   min-width: 0;
 }
 
-.onam-step-node {
+.regform-step-node {
   width: 34px;
   height: 34px;
   border-radius: 50%;
@@ -3363,20 +3363,20 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   transition: all 0.2s ease;
 }
 
-.onam-step-node.active {
+.regform-step-node.active {
   border-color: var(--amber);
   background: var(--amber);
   color: var(--cta-text);
   box-shadow: 0 0 0 4px var(--amber-glow);
 }
 
-.onam-step-node.done {
-  border-color: var(--nk-green);
+.regform-step-node.done {
+  border-color: var(--wmf-green);
   background: rgba(93, 184, 92, 0.16);
   color: var(--green-text);
 }
 
-.onam-step-label {
+.regform-step-label {
   font-family: var(--font-ui);
   font-size: 11px;
   font-weight: 700;
@@ -3386,15 +3386,15 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   line-height: 1.3;
 }
 
-.onam-step-label.active {
+.regform-step-label.active {
   color: var(--amber-text);
 }
 
-.onam-step-label.done {
+.regform-step-label.done {
   color: var(--text);
 }
 
-.onam-step-line {
+.regform-step-line {
   position: absolute;
   top: 17px;
   left: calc(50% + 20px);
@@ -3404,19 +3404,19 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   z-index: 1;
 }
 
-.onam-step-line.done {
-  background: var(--nk-green);
+.regform-step-line.done {
+  background: var(--wmf-green);
 }
 
 /* ── Registration-type option cards ── */
-.onam-option-grid {
+.regform-option-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 14px;
   margin-bottom: 4px;
 }
 
-.onam-option-card {
+.regform-option-card {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -3431,29 +3431,29 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
-.onam-option-card:hover {
+.regform-option-card:hover {
   border-color: var(--border-hover);
   transform: translateY(-2px);
 }
 
-.onam-option-card.selected {
-  border-color: var(--nk-green);
+.regform-option-card.selected {
+  border-color: var(--wmf-green);
   box-shadow: 0 0 0 3px rgba(93, 184, 92, 0.2);
 }
 
-.onam-option-card.disabled {
+.regform-option-card.disabled {
   opacity: 0.72;
   cursor: not-allowed;
   transform: none;
   background: var(--surface-2);
 }
 
-.onam-option-card.disabled:hover {
+.regform-option-card.disabled:hover {
   border-color: var(--border);
   transform: none;
 }
 
-.onam-option-badge-full {
+.regform-option-badge-full {
   top: 12px;
   right: 12px;
   bottom: auto;
@@ -3467,7 +3467,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   color: #fff8f3;
 }
 
-.onam-capacity-note {
+.regform-capacity-note {
   margin: -4px 0 14px;
   padding: 10px 14px;
   background: #fff5df;
@@ -3477,7 +3477,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   color: #5f4a18;
 }
 
-.onam-option-badge {
+.regform-option-badge {
   position: absolute;
   display: inline-flex;
   width: max-content;
@@ -3497,25 +3497,25 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   border-radius: 999px;
 }
 
-.onam-option-icon {
+.regform-option-icon {
   font-size: 1.7rem;
   line-height: 1;
 }
 
-.onam-option-title {
+.regform-option-title {
   font-family: var(--font-display);
   font-size: 1.05rem;
   font-weight: 800;
   color: var(--text);
 }
 
-.onam-option-tagline {
+.regform-option-tagline {
   font-size: 12px;
   line-height: 1.5;
   color: var(--text-muted);
 }
 
-.onam-option-price-row {
+.regform-option-price-row {
   display: flex;
   justify-content: space-between;
   gap: 10px;
@@ -3529,7 +3529,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   color: var(--text);
 }
 
-.onam-option-price-row small {
+.regform-option-price-row small {
   font-family: var(--font-body);
   font-size: 10px;
   font-weight: 500;
@@ -3539,7 +3539,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
 }
 
 /* ── Pill toggle group (NPO tier, payment method) ── */
-.onam-toggle-group {
+.regform-toggle-group {
   display: inline-flex;
   gap: 8px;
   flex-wrap: wrap;
@@ -3549,7 +3549,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   border-radius: 999px;
 }
 
-.onam-toggle-pill {
+.regform-toggle-pill {
   border: none;
   background: none;
   cursor: pointer;
@@ -3562,18 +3562,18 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   transition: all 0.18s ease;
 }
 
-.onam-toggle-pill.selected {
-  background: linear-gradient(180deg, var(--nk-green) 0%, var(--nk-green-deep) 100%);
+.regform-toggle-pill.selected {
+  background: linear-gradient(180deg, var(--wmf-green) 0%, var(--wmf-green-deep) 100%);
   color: #0a0d0a;
   box-shadow: 0 6px 16px rgba(93, 184, 92, 0.24);
 }
 
 /* ── NPO membership panel (step 1) ── */
-.onam-npo-loading {
+.regform-npo-loading {
   margin: 4px 0 0;
 }
 
-.onam-npo-status {
+.regform-npo-status {
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -3583,12 +3583,12 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   background: var(--surface-2);
 }
 
-.onam-npo-status.is-member {
+.regform-npo-status.is-member {
   border-color: rgba(93, 184, 92, 0.5);
   background: rgba(93, 184, 92, 0.08);
 }
 
-.onam-npo-badge {
+.regform-npo-badge {
   flex-shrink: 0;
   padding: 4px 12px;
   border-radius: 999px;
@@ -3597,28 +3597,28 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  background: linear-gradient(180deg, var(--nk-green) 0%, var(--nk-green-deep) 100%);
+  background: linear-gradient(180deg, var(--wmf-green) 0%, var(--wmf-green-deep) 100%);
   color: #0a0d0a;
 }
 
-.onam-npo-status-text {
+.regform-npo-status-text {
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
-.onam-npo-status-text strong {
+.regform-npo-status-text strong {
   font-size: 14px;
   color: var(--text);
 }
 
-.onam-npo-status-text span {
+.regform-npo-status-text span {
   font-size: 13px;
   color: var(--text-muted);
   line-height: 1.5;
 }
 
-.onam-npo-offer {
+.regform-npo-offer {
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -3631,50 +3631,50 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   transition: border-color 0.18s ease, background 0.18s ease;
 }
 
-.onam-npo-offer:hover {
-  border-color: var(--nk-amber);
+.regform-npo-offer:hover {
+  border-color: var(--wmf-amber);
 }
 
-.onam-npo-offer:has(input:checked) {
-  border-color: var(--nk-amber);
+.regform-npo-offer:has(input:checked) {
+  border-color: var(--wmf-amber);
   background: rgba(245, 166, 35, 0.08);
 }
 
-.onam-npo-offer input {
+.regform-npo-offer input {
   margin-top: 3px;
   width: 18px;
   height: 18px;
-  accent-color: var(--nk-green);
+  accent-color: var(--wmf-green);
   cursor: pointer;
 }
 
-.onam-npo-offer span {
+.regform-npo-offer span {
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
-.onam-npo-offer strong {
+.regform-npo-offer strong {
   font-size: 14px;
   color: var(--text);
 }
 
-.onam-npo-offer small {
+.regform-npo-offer small {
   font-size: 12.5px;
   color: var(--text-muted);
   line-height: 1.5;
 }
 
 /* ── Price table (ticket selection / summary / review) ── */
-.onam-price-table {
+.regform-price-table {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
-.onam-price-head,
-.onam-price-row,
-.onam-price-foot {
+.regform-price-head,
+.regform-price-row,
+.regform-price-foot {
   display: grid;
   grid-template-columns: 2fr 0.7fr 1.2fr 1.2fr;
   align-items: center;
@@ -3682,7 +3682,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   padding: 12px 16px;
 }
 
-.onam-price-head {
+.regform-price-head {
   background: linear-gradient(180deg, var(--surface-3) 0%, var(--surface-2) 100%);
   font-family: var(--font-ui);
   font-size: 10px;
@@ -3692,33 +3692,33 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   color: var(--amber-text);
 }
 
-.onam-price-row {
+.regform-price-row {
   border-top: 1px solid var(--border);
   font-size: 14px;
   color: var(--text);
 }
 
-.onam-price-row.muted {
+.regform-price-row.muted {
   color: var(--text-faint);
 }
 
-.onam-price-row.discount {
+.regform-price-row.discount {
   color: var(--green-text);
   font-weight: 700;
 }
 
-.onam-price-row.balance-due {
+.regform-price-row.balance-due {
   color: #c85050;
   font-weight: 700;
 }
 
-.onam-price-row > div:not(:first-child),
-.onam-price-head > div:not(:first-child),
-.onam-price-foot > div:not(:first-child) {
+.regform-price-row > div:not(:first-child),
+.regform-price-head > div:not(:first-child),
+.regform-price-foot > div:not(:first-child) {
   text-align: right;
 }
 
-.onam-strike {
+.regform-strike {
   display: inline-block;
   margin-left: 8px;
   color: var(--text-faint);
@@ -3726,7 +3726,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   font-size: 12px;
 }
 
-.onam-price-foot {
+.regform-price-foot {
   border-top: 1px solid rgba(93, 184, 92, 0.4);
   background: linear-gradient(180deg, var(--surface-3) 0%, var(--surface-2) 100%);
   font-family: var(--font-ui);
@@ -3737,21 +3737,21 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
 
 /* Compact variant for nesting inside a dense admin table cell (no head/foot,
    just item rows — see SeatUpgradeManagement.jsx's Zones/Dinner columns). */
-.onam-price-table-compact .onam-price-row {
+.regform-price-table-compact .regform-price-row {
   padding: 6px 10px;
   font-size: 12px;
 }
 
-.onam-price-table-compact .onam-price-row:first-child {
+.regform-price-table-compact .regform-price-row:first-child {
   border-top: none;
 }
 
 /* ── Pricing reference (registration-type step) ── */
-.onam-price-ref {
+.regform-price-ref {
   margin: 4px 0 22px;
 }
 
-.onam-price-ref-table {
+.regform-price-ref-table {
   width: 100%;
   border-collapse: collapse;
   border: 1px solid var(--border);
@@ -3760,14 +3760,14 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   font-size: 14px;
 }
 
-.onam-price-ref-table th,
-.onam-price-ref-table td {
+.regform-price-ref-table th,
+.regform-price-ref-table td {
   padding: 11px 14px;
   border-top: 1px solid var(--border);
   text-align: right;
 }
 
-.onam-price-ref-table thead th {
+.regform-price-ref-table thead th {
   background: linear-gradient(180deg, var(--surface-3) 0%, var(--surface-2) 100%);
   font-family: var(--font-ui);
   font-size: 10px;
@@ -3778,21 +3778,21 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   border-top: none;
 }
 
-.onam-price-ref-table thead th:first-child,
-.onam-price-ref-table tbody th {
+.regform-price-ref-table thead th:first-child,
+.regform-price-ref-table tbody th {
   text-align: left;
 }
 
-.onam-price-ref-table tbody th {
+.regform-price-ref-table tbody th {
   font-weight: 700;
   color: var(--text);
 }
 
-.onam-price-ref-table tbody td {
+.regform-price-ref-table tbody td {
   color: var(--text);
 }
 
-.onam-price-ref-sub {
+.regform-price-ref-sub {
   display: block;
   font-size: 11px;
   font-weight: 500;
@@ -3800,7 +3800,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   margin-top: 2px;
 }
 
-.onam-price-ref-note {
+.regform-price-ref-note {
   margin: 10px 2px 0;
   font-size: 12px;
   color: var(--text-faint);
@@ -3865,14 +3865,14 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
 }
 
 /* ── Summary meta chips ── */
-.onam-summary-meta {
+.regform-summary-meta {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
   margin-bottom: 16px;
 }
 
-.onam-chip {
+.regform-chip {
   font-size: 12px;
   font-weight: 700;
   padding: 6px 14px;
@@ -3882,7 +3882,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   color: var(--text);
 }
 
-.onam-chip.npo {
+.regform-chip.npo {
   border-color: rgba(93, 184, 92, 0.5);
   color: var(--green-text);
   background: rgba(93, 184, 92, 0.1);
@@ -3923,7 +3923,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
 }
 
 .entry-slot-option.selected {
-  border-color: var(--nk-green);
+  border-color: var(--wmf-green);
   box-shadow: 0 0 0 3px rgba(93, 184, 92, 0.2);
 }
 
@@ -4024,7 +4024,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
 }
 
 /* ── Review key/value grid ── */
-.onam-review-grid {
+.regform-review-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0 24px;
@@ -4034,7 +4034,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   padding: 4px 18px;
 }
 
-.onam-review-row {
+.regform-review-row {
   display: flex;
   justify-content: space-between;
   gap: 14px;
@@ -4042,7 +4042,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   border-bottom: 1px solid var(--border);
 }
 
-.onam-review-label {
+.regform-review-label {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -4050,7 +4050,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   color: var(--text-muted);
 }
 
-.onam-review-value {
+.regform-review-value {
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
@@ -4115,7 +4115,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
 }
 
 .entry-pass-qr-button:hover {
-  border-color: var(--nk-green);
+  border-color: var(--wmf-green);
   color: var(--green-text);
 }
 
@@ -4143,14 +4143,14 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
 }
 
 /* ── Consent checkboxes ── */
-.onam-consents {
+.regform-consents {
   display: flex;
   flex-direction: column;
   gap: 14px;
   margin-top: 22px;
 }
 
-.onam-check {
+.regform-check {
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -4160,16 +4160,16 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   cursor: pointer;
 }
 
-.onam-check input {
+.regform-check input {
   width: 18px;
   height: 18px;
   margin: 0;
-  accent-color: var(--nk-green);
+  accent-color: var(--wmf-green);
   flex-shrink: 0;
 }
 
 /* ── Persistent summary card ── */
-.onam-summary-card {
+.regform-summary-card {
   margin-top: 18px;
   padding: 20px 22px;
   background: var(--surface);
@@ -4178,7 +4178,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   box-shadow: var(--shadow-soft);
 }
 
-.onam-summary-title {
+.regform-summary-title {
   font-family: var(--font-display);
   font-size: 13px;
   font-weight: 800;
@@ -4187,32 +4187,32 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   color: var(--text);
 }
 
-.onam-summary-sub {
+.regform-summary-sub {
   font-size: 12px;
   color: var(--text-muted);
   margin-top: 2px;
   margin-bottom: 14px;
 }
 
-.onam-summary-lines {
+.regform-summary-lines {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.onam-summary-line {
+.regform-summary-line {
   display: flex;
   justify-content: space-between;
   font-size: 14px;
   color: var(--text);
 }
 
-.onam-summary-empty {
+.regform-summary-empty {
   font-size: 13px;
   color: var(--text-muted);
 }
 
-.onam-summary-total {
+.regform-summary-total {
   display: flex;
   justify-content: space-between;
   margin-top: 14px;
@@ -4224,26 +4224,26 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   color: var(--amber-text);
 }
 
-.onam-nav-row {
+.regform-nav-row {
   justify-content: space-between;
 }
 
 @media (max-width: 720px) {
-  .onam-option-grid {
+  .regform-option-grid {
     grid-template-columns: 1fr;
   }
 
-  .onam-review-grid {
+  .regform-review-grid {
     grid-template-columns: 1fr;
   }
 
-  .onam-step-label {
+  .regform-step-label {
     display: none;
   }
 
-  .onam-price-head,
-  .onam-price-row,
-  .onam-price-foot {
+  .regform-price-head,
+  .regform-price-row,
+  .regform-price-foot {
     grid-template-columns: 1.6fr 0.6fr 1fr 1fr;
     padding: 10px 12px;
     font-size: 13px;
@@ -4404,7 +4404,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
 
 .entry-checkin-state.valid::before {
   content: "✓";
-  background: var(--nk-green);
+  background: var(--wmf-green);
   color: var(--cta-text);
 }
 
@@ -4415,7 +4415,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
 
 .entry-checkin-state.invalid::before {
   content: "!";
-  background: var(--nk-red);
+  background: var(--wmf-red);
   color: #fff;
 }
 
@@ -4641,7 +4641,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   color: var(--text-muted);
 }
 
-.onam-note {
+.regform-note {
   padding: 12px 14px;
   border-radius: 8px;
   background: var(--surface-2);
@@ -4974,7 +4974,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   width: 24px;
   height: 24px;
   cursor: pointer;
-  accent-color: var(--nk-green);
+  accent-color: var(--wmf-green);
 }
 
 .slot-guide-agree-row label {
@@ -5136,11 +5136,11 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
 }
 
 /* Signed-in member dropdown ("Hello, <name>") */
-.nk-user {
+.wmf-user {
   position: relative;
 }
 
-.nk-user-trigger {
+.wmf-user-trigger {
   border: none;
   background: none;
   cursor: pointer;
@@ -5156,7 +5156,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   white-space: nowrap;
 }
 
-.nk-user-menu {
+.wmf-user-menu {
   position: absolute;
   top: calc(100% + 14px);
   right: 0;
@@ -5170,7 +5170,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
 }
 
 /* little pointer under the user name */
-.nk-user-menu::before {
+.wmf-user-menu::before {
   content: "";
   position: absolute;
   top: -7px;
@@ -5181,7 +5181,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   transform: rotate(45deg);
 }
 
-.nk-user-head {
+.wmf-user-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -5189,7 +5189,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   padding-bottom: 18px;
 }
 
-.nk-user-hello {
+.wmf-user-hello {
   display: flex;
   flex-direction: column;
   color: #7a7a7a;
@@ -5197,7 +5197,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   min-width: 0;
 }
 
-.nk-user-hello strong {
+.wmf-user-hello strong {
   color: #1b1b1b;
   font-size: 1.35rem;
   font-weight: 800;
@@ -5205,19 +5205,19 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   overflow-wrap: anywhere;
 }
 
-.nk-user-avatar {
+.wmf-user-avatar {
   flex: none;
   width: 70px;
   height: 70px;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, var(--nk-green), var(--nk-green-deep));
+  background: linear-gradient(135deg, var(--wmf-green), var(--wmf-green-deep));
   color: #fff;
   font-size: 1.6rem;
   font-weight: 800;
 }
 
-.nk-user-item {
+.wmf-user-item {
   display: block;
   width: 100%;
   text-align: left;
@@ -5232,16 +5232,16 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   line-height: 1.35;
 }
 
-.nk-user-item:hover {
+.wmf-user-item:hover {
   color: #2d6a1f;
 }
 
 @media (max-width: 768px) {
-  .nk-user-name {
+  .wmf-user-name {
     display: none;
   }
 
-  .nk-user-menu {
+  .wmf-user-menu {
     position: fixed;
     top: 72px;
     left: 12px;
@@ -5249,7 +5249,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
     width: auto;
   }
 
-  .nk-user-menu::before {
+  .wmf-user-menu::before {
     display: none;
   }
 }
@@ -5297,8 +5297,8 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   margin-top: 4px;
   padding: 13px 30px;
   border-radius: var(--radius-sm);
-  background: linear-gradient(180deg, var(--nk-green) 0%, var(--nk-green-deep) 100%);
-  border: 1px solid var(--nk-green-deep);
+  background: linear-gradient(180deg, var(--wmf-green) 0%, var(--wmf-green-deep) 100%);
+  border: 1px solid var(--wmf-green-deep);
   color: #0a0d0a;
   font-family: var(--font-ui);
   font-size: 13px;
@@ -5479,12 +5479,12 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
 
 .agm-adult-row input:focus {
   outline: none;
-  border-color: var(--nk-green);
+  border-color: var(--wmf-green);
   box-shadow: 0 0 0 3px rgba(93, 184, 92, 0.18);
 }
 
 .agm-adult-row input.input-invalid {
-  border-color: var(--nk-red);
+  border-color: var(--wmf-red);
   box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.16);
 }
 
@@ -5583,7 +5583,7 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   height: 3px;
   margin-top: 12px;
   border-radius: 3px;
-  background: linear-gradient(90deg, var(--nk-green), var(--amber));
+  background: linear-gradient(90deg, var(--wmf-green), var(--amber));
 }
 
 .partners-page .partners-page-header p,
@@ -5864,14 +5864,14 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
 
 [data-theme="light"] .btn-primary,
 [data-theme="light"] .button.primary,
-[data-theme="light"] .onam-toggle-pill.selected,
+[data-theme="light"] .regform-toggle-pill.selected,
 [data-theme="light"] .npo-pay-button {
   background: linear-gradient(180deg, #34823a 0%, #2a6a2b 100%);
   border-color: #2a6a2b;
   color: #fff;
 }
 
-.nk-user-hello {
+.wmf-user-hello {
   color: #666;
 }
 
@@ -5884,7 +5884,7 @@ textarea:not(:focus):not(.input-invalid) {
 
 /* Mobile menu panel: fully opaque so page text can't show through the links */
 @media (max-width: 768px) {
-  .nk-nav-links {
+  .wmf-nav-links {
     background: var(--bg);
   }
 }
@@ -6140,7 +6140,7 @@ a.admin-tab {
 }
 
 .wa-status--joined {
-  border-color: var(--nk-green);
+  border-color: var(--wmf-green);
   font-weight: 700;
 }
 

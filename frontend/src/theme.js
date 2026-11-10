@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const STORAGE_KEY = "nk-theme";
+const STORAGE_KEY = "wmf-theme";
 
 export function getInitialTheme() {
   try {
@@ -30,8 +30,8 @@ export function useTheme() {
         setThemeState(next);
       }
     };
-    window.addEventListener("nk-theme-change", handleChange);
-    return () => window.removeEventListener("nk-theme-change", handleChange);
+    window.addEventListener("wmf-theme-change", handleChange);
+    return () => window.removeEventListener("wmf-theme-change", handleChange);
   }, []);
 
   const setTheme = (next) => {
@@ -42,7 +42,7 @@ export function useTheme() {
       // ignore persistence failures
     }
     setThemeState(next);
-    window.dispatchEvent(new CustomEvent("nk-theme-change", { detail: next }));
+    window.dispatchEvent(new CustomEvent("wmf-theme-change", { detail: next }));
   };
 
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");

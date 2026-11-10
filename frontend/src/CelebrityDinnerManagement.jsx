@@ -809,53 +809,53 @@ export default function CelebrityDinnerManagement({ events = [], initialEventTyp
                       <h4>
                         {reg.name || reg.email}{" "}
                         {reg.source === "zoneUpgrade" ? (
-                          <span className="onam-chip" title={`Booked as part of a Zone Upgrade request${reg.tierName ? ` (${reg.tierName})` : ""}`}>
+                          <span className="regform-chip" title={`Booked as part of a Zone Upgrade request${reg.tierName ? ` (${reg.tierName})` : ""}`}>
                             Via Zone Upgrade
                           </span>
                         ) : reg.registrationId ? null : (
-                          <span className="onam-chip" title="No underlying event registration">Dinner Only</span>
+                          <span className="regform-chip" title="No underlying event registration">Dinner Only</span>
                         )}
                       </h4>
                     </div>
                     <span className="partner-status active">{totalGuests} guest{totalGuests === 1 ? "" : "s"}</span>
                   </div>
-                  <div className="onam-review-grid" style={{ marginTop: "8px" }}>
-                    <div className="onam-review-row">
-                      <span className="onam-review-label">Email</span>
-                      <span className="onam-review-value">{reg.email || "—"}</span>
+                  <div className="regform-review-grid" style={{ marginTop: "8px" }}>
+                    <div className="regform-review-row">
+                      <span className="regform-review-label">Email</span>
+                      <span className="regform-review-value">{reg.email || "—"}</span>
                     </div>
-                    <div className="onam-review-row">
-                      <span className="onam-review-label">Payment Method</span>
-                      <span className="onam-review-value">{reg.paymentMethod || "—"}</span>
+                    <div className="regform-review-row">
+                      <span className="regform-review-label">Payment Method</span>
+                      <span className="regform-review-value">{reg.paymentMethod || "—"}</span>
                     </div>
-                    <div className="onam-review-row">
-                      <span className="onam-review-label">Payment Status</span>
-                      <span className="onam-review-value">
+                    <div className="regform-review-row">
+                      <span className="regform-review-label">Payment Status</span>
+                      <span className="regform-review-value">
                         <span className={`payment-badge ${reg.status}`}>{REGISTRATION_STATUS_LABELS[reg.status] || reg.status}</span>
                       </span>
                     </div>
-                    <div className="onam-review-row">
-                      <span className="onam-review-label">Signed Up</span>
-                      <span className="onam-review-value">{reg.submittedAt ? new Date(reg.submittedAt).toLocaleString() : "—"}</span>
+                    <div className="regform-review-row">
+                      <span className="regform-review-label">Signed Up</span>
+                      <span className="regform-review-value">{reg.submittedAt ? new Date(reg.submittedAt).toLocaleString() : "—"}</span>
                     </div>
                   </div>
                   {lineItems.length > 0 ? (
-                    <div className="onam-price-table" style={{ marginTop: "10px" }}>
-                      <div className="onam-price-head">
+                    <div className="regform-price-table" style={{ marginTop: "10px" }}>
+                      <div className="regform-price-head">
                         <div>Item</div>
                         <div>Qty</div>
                         <div>Price</div>
                         <div>Total</div>
                       </div>
                       {lineItems.map((item) => (
-                        <div className="onam-price-row" key={item.key}>
+                        <div className="regform-price-row" key={item.key}>
                           <div>{item.label}</div>
                           <div>{item.qty}</div>
                           <div>{yen(item.price)}</div>
                           <div>{yen(item.price * item.qty)}</div>
                         </div>
                       ))}
-                      <div className="onam-price-foot">
+                      <div className="regform-price-foot">
                         <div>Total</div>
                         <div />
                         <div />
@@ -866,7 +866,7 @@ export default function CelebrityDinnerManagement({ events = [], initialEventTyp
                   <div className="partner-meta" style={{ marginTop: "8px" }}>
                     <span>Txn: {reg.paymentReference || reg.providerPaymentId || "—"}</span>
                     {reg.status === "refund_requested" && reg.refundStatus ? (
-                      <span className="onam-summary-sub">
+                      <span className="regform-summary-sub">
                         {REFUND_STATUS_LABELS[reg.refundStatus] || reg.refundStatus}
                         {reg.refundReference ? ` (${reg.refundReference})` : ""}
                       </span>

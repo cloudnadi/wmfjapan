@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "build:preview": "vite build --mode preview",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.1106.0",
@@ -17,8 +19,12 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@vitejs/plugin-react": "^4.3.1",
-    "vite": "^5.4.8"
+    "jsdom": "^25.0.1",
+    "vite": "^5.4.8",
+    "vitest": "^2.1.9"
   },
   "allowScripts": {
     "fsevents@2.3.3": true,

@@ -216,7 +216,7 @@ export default function SeatUpgrade({ navigateTo, onLogout }) {
   return (
     <>
       {nav}
-      <main className="page-wrap onam-reg">
+      <main className="page-wrap regform-reg">
         <header className="event-header">
           <div className="banner-title">Upgrade My Zone</div>
           <div className="banner-sub-title">
@@ -226,7 +226,7 @@ export default function SeatUpgrade({ navigateTo, onLogout }) {
         </header>
 
         {returnBanner ? (
-          <p className={returnBanner.status === "paid" ? "success-banner" : "field-note onam-capacity-note"}>
+          <p className={returnBanner.status === "paid" ? "success-banner" : "field-note regform-capacity-note"}>
             {returnBanner.status === "paid"
               ? `Payment received — your ${returnBanner.tierName || "seat"} upgrade is confirmed.`
               : "We're still confirming your payment with the provider. This usually takes a moment — refresh in a bit if the status below doesn't update."}
@@ -384,12 +384,12 @@ function RegistrationUpgradeCard({ reg, onRequest, onCancel, onPayNow }) {
   return (
     <section className="form-card" style={{ marginBottom: "18px" }}>
       <div className="form-body">
-        <div className="onam-summary-meta" style={{ justifyContent: "space-between", alignItems: "center" }}>
+        <div className="regform-summary-meta" style={{ justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <div className="section-label" style={{ marginBottom: "4px" }}>{reg.eventName || reg.eventType}</div>
-            <div className="onam-summary-sub">{reg.registrantName}</div>
+            <div className="regform-summary-sub">{reg.registrantName}</div>
           </div>
-          <span className="onam-chip">{seatsInParty} seat{seatsInParty === 1 ? "" : "s"} in party</span>
+          <span className="regform-chip">{seatsInParty} seat{seatsInParty === 1 ? "" : "s"} in party</span>
         </div>
 
         {reg.error ? <p className="error-banner">{reg.error}</p> : null}
@@ -409,7 +409,7 @@ function RegistrationUpgradeCard({ reg, onRequest, onCancel, onPayNow }) {
                 (u.dinnerKidsUnder6VegGuests || 0) +
                 (u.dinnerKidsUnder6NonVegGuests || 0);
               return (
-                <div key={u.upgradeId} className="onam-price-row">
+                <div key={u.upgradeId} className="regform-price-row">
                   <div>
                     {u.tierName} ({u.seatCount} seat{u.seatCount === 1 ? "" : "s"})
                     {dinnerTotalGuests > 0 ? ` + Celebrity Dinner (${dinnerTotalGuests} guest${dinnerTotalGuests === 1 ? "" : "s"})` : ""}
@@ -542,7 +542,7 @@ function RegistrationUpgradeCard({ reg, onRequest, onCancel, onPayNow }) {
                 </div>
               ) : null}
               <form onSubmit={handleSubmit}>
-                <div className="onam-option-grid">
+                <div className="regform-option-grid">
                   {tiers.map((tier, index) => {
                     const soldOut = tier.remainingCapacity <= 0;
                     const count = Number(picks[tier.tierId]) || 0;
@@ -552,16 +552,16 @@ function RegistrationUpgradeCard({ reg, onRequest, onCancel, onPayNow }) {
                     );
                     return (
                       <div
-                        className={`onam-option-card ${count > 0 ? "selected" : ""} ${soldOut ? "disabled" : ""}`}
+                        className={`regform-option-card ${count > 0 ? "selected" : ""} ${soldOut ? "disabled" : ""}`}
                         key={tier.tierId}
                       >
-                        {soldOut ? <span className="onam-option-badge onam-option-badge-full">Full</span> : null}
-                        <span className="onam-option-icon" aria-hidden="true">{ZONE_ICONS[index] || "🎟️"}</span>
-                        <span className="onam-option-title">{tier.name}</span>
-                        <span className="onam-option-tagline">
+                        {soldOut ? <span className="regform-option-badge regform-option-badge-full">Full</span> : null}
+                        <span className="regform-option-icon" aria-hidden="true">{ZONE_ICONS[index] || "🎟️"}</span>
+                        <span className="regform-option-title">{tier.name}</span>
+                        <span className="regform-option-tagline">
                           {tier.description || "Premium reserved seating"}
                         </span>
-                        <span className="onam-option-price-row">
+                        <span className="regform-option-price-row">
                           <span>{yen(tier.upgradePrice)} <small>/ seat</small></span>
                         </span>
                         <div className="field" style={{ marginTop: "10px" }}>
@@ -671,7 +671,7 @@ function RegistrationUpgradeCard({ reg, onRequest, onCancel, onPayNow }) {
                   </div>
                 </div>
 
-                <div className="onam-price-row" style={{ marginTop: "6px" }}>
+                <div className="regform-price-row" style={{ marginTop: "6px" }}>
                   <div>Estimated total</div>
                   <div />
                   <div />

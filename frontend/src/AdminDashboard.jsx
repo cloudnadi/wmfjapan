@@ -4337,7 +4337,7 @@ export default function AdminDashboard({ onLogout, embedded = false, onAuthentic
           </div>
 
           <div className="field">
-            <label className="onam-check">
+            <label className="regform-check">
               <input
                 type="checkbox"
                 checked={memberForm.npoFlagActive}
@@ -5393,9 +5393,9 @@ export default function AdminDashboard({ onLogout, embedded = false, onAuthentic
                 <div className="counter-grid">
                   {ONAM_CATEGORIES.map((cat) => (
                     <div className="field" key={cat.key}>
-                      <label htmlFor={`onam-${cat.key}`}>{cat.label}</label>
+                      <label htmlFor={`regform-${cat.key}`}>{cat.label}</label>
                       <input
-                        id={`onam-${cat.key}`}
+                        id={`regform-${cat.key}`}
                         type="number"
                         min="0"
                         value={registrationForm.attendeeCounts[cat.key]}
@@ -5414,9 +5414,9 @@ export default function AdminDashboard({ onLogout, embedded = false, onAuthentic
                     <div className="counter-grid">
                       {registrationForm.additionalAdultEmails.map((email, index) => (
                         <div className="field" key={index}>
-                          <label htmlFor={`onam-adult-${index}`}>Adult {index + 2} email</label>
+                          <label htmlFor={`regform-adult-${index}`}>Adult {index + 2} email</label>
                           <input
-                            id={`onam-adult-${index}`}
+                            id={`regform-adult-${index}`}
                             type="email"
                             placeholder="adult@email.com"
                             value={email}
@@ -5452,12 +5452,12 @@ export default function AdminDashboard({ onLogout, embedded = false, onAuthentic
                 ) : null}
                 <div className="field">
                   <label>Payment Method</label>
-                  <div className="onam-toggle-group">
+                  <div className="regform-toggle-group">
                     {ONAM_PAYMENT_METHODS.map((m) => (
                       <button
                         type="button"
                         key={m.key}
-                        className={`onam-toggle-pill ${registrationForm.paymentMethod === m.key ? "selected" : ""}`}
+                        className={`regform-toggle-pill ${registrationForm.paymentMethod === m.key ? "selected" : ""}`}
                         onClick={() =>
                           setRegistrationForm((prev) => ({ ...prev, paymentMethod: m.key }))
                         }
@@ -5467,7 +5467,7 @@ export default function AdminDashboard({ onLogout, embedded = false, onAuthentic
                     ))}
                     <button
                       type="button"
-                      className={`onam-toggle-pill ${isOtherPaymentMethod ? "selected" : ""}`}
+                      className={`regform-toggle-pill ${isOtherPaymentMethod ? "selected" : ""}`}
                       onClick={() => setRegistrationForm((prev) => ({ ...prev, paymentMethod: "" }))}
                     >
                       Other
@@ -5871,7 +5871,7 @@ export default function AdminDashboard({ onLogout, embedded = false, onAuthentic
                     type="email"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="admin@cloudnadi.com"
+                    placeholder="admin@example.com"
                     disabled={isRequestingResetCode}
                   />
                   {loginError && <span className="field-error">{loginError}</span>}
@@ -5901,7 +5901,7 @@ export default function AdminDashboard({ onLogout, embedded = false, onAuthentic
                   type="email"
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="admin@cloudnadi.com"
+                  placeholder="admin@example.com"
                   disabled={isLoggingIn}
                 />
               </div>

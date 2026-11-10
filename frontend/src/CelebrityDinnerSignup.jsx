@@ -11,9 +11,21 @@ import { getRegistrantEmail } from "./registrantAuth";
 const HOME_PATH = "/";
 const MY_REGISTRATIONS_PATH = "/my/registrations";
 const CELEBRITY_DINNER_SIGNUP_PATH = "/celebrity-dinner";
-const SEAT_SELECTION_GUIDE_PATH = "/seat-selection-guide";
-const ZONE_UPGRADE_GUIDE_PATH = "/zone-upgrade-guide";
-const EVENT_TYPE = import.meta.env.VITE_EVENT_TYPE_ONAM || "onam_2026";
+// Which event this sign-up is for comes from the link (?event=<eventType>), never from a build-time constant.
+// A hosted-checkout return drops the query string, so the event is also remembered for this tab.
+const EVENT_MEMORY_KEY = "wmf-dinner-event";
+function readEventType() {
+  const fromLink = (new URLSearchParams(window.location.search).get("event") || "").trim();
+  try {
+    if (fromLink) {
+      sessionStorage.setItem(EVENT_MEMORY_KEY, fromLink);
+      return fromLink;
+    }
+    return sessionStorage.getItem(EVENT_MEMORY_KEY) || "";
+  } catch {
+    return fromLink;
+  }
+}
 
 const yen = (value) => `¥${Number(value || 0).toLocaleString("en-US")}`;
 
@@ -42,19 +54,6 @@ const DINNER_STATUS_LABELS = {
   refund_requested: "Refund Requested",
   cancelled: "Cancelled",
 };
-
-// Copied from App.jsx/PartnersPage.jsx — same "copied component" convention
-// used throughout this app, so every page (not just the public ones) ends
-// with the same small business-development footer.
-function EventFooter() {
-  return (
-    <footer className="event-footer">
-      Host Your Event With Us
-      <br />
-      For bookings and inquiries, contact <a href="mailto:hello@cloudnadi.com">hello@cloudnadi.com</a>.
-    </footer>
-  );
-}
 
 /**
  * Standalone Dinner with Celebrity sign-up for someone with NO underlying event
@@ -86,12 +85,18 @@ export default function CelebrityDinnerSignup({ navigateTo, onLogout }) {
   const [paymentMethod, setPaymentMethod] = useState("");
   const [returnBanner, setReturnBanner] = useState(null); // {status} | null
   const email = getRegistrantEmail();
+  const [eventType] = useState(readEventType);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError("");
-    getMyGuestCelebrityDinner(EVENT_TYPE)
+    if (!eventType) {
+      setError("This sign-up needs an event. Please open it from the link on your registration page.");
+      setLoading(false);
+      return undefined;
+    }
+    getMyGuestCelebrityDinner(eventType)
       .then((data) => {
         if (cancelled) return;
         const availableMethods = Array.isArray(data.config?.paymentMethods) ? data.config.paymentMethods : [];
@@ -119,7 +124,7 @@ export default function CelebrityDinnerSignup({ navigateTo, onLogout }) {
         const params = new URLSearchParams(window.location.search);
         const returningId = params.get("celebrityDinnerId");
         if (returningId && data.registration?.dinnerRegistrationId === returningId) {
-          window.history.replaceState({}, "", CELEBRITY_DINNER_SIGNUP_PATH);
+          window.history.replaceState({}, "", `${CELEBRITY_DINNER_SIGNUP_PATH}?event=${encodeURIComponent(eventType)}`);
           setReturnBanner({ status: data.registration?.status || "pending" });
         }
       })
@@ -144,13 +149,12 @@ export default function CelebrityDinnerSignup({ navigateTo, onLogout }) {
     return (
       <>
         {nav}
-        <main className="page-wrap onam-reg">
+        <main className="page-wrap regform-reg">
           <section className="form-card">
             <div className="form-body">
               <p className="field-note">Loading Dinner with Celebrity details…</p>
             </div>
           </section>
-          <EventFooter />
         </main>
       </>
     );
@@ -160,7 +164,7 @@ export default function CelebrityDinnerSignup({ navigateTo, onLogout }) {
     return (
       <>
         {nav}
-        <main className="page-wrap onam-reg">
+        <main className="page-wrap regform-reg">
           <header className="event-header">
             <div className="banner-title">Dinner with Celebrity</div>
             <div className="sky-bar" />
@@ -175,7 +179,6 @@ export default function CelebrityDinnerSignup({ navigateTo, onLogout }) {
               </div>
             </div>
           </section>
-          <EventFooter />
         </main>
       </>
     );
@@ -195,7 +198,7 @@ export default function CelebrityDinnerSignup({ navigateTo, onLogout }) {
     config.cancellationEnabled !== false && (!config.refundWindowEndsAt || new Date().toISOString() <= config.refundWindowEndsAt);
 
   const startCheckout = async (provider) => {
-    const { checkoutUrl } = await checkoutMyGuestCelebrityDinner(EVENT_TYPE, provider);
+    const { checkoutUrl } = await checkoutMyGuestCelebrityDinner(eventType, provider);
     window.location.href = checkoutUrl;
   };
 
@@ -231,7 +234,7 @@ export default function CelebrityDinnerSignup({ navigateTo, onLogout }) {
     }
     setSaving(true);
     try {
-      const saved = await saveMyGuestCelebrityDinner(EVENT_TYPE, trimmedName, counts, paymentMethod);
+      const saved = await saveMyGuestCelebrityDinner(eventType, trimmedName, counts, paymentMethod);
       setDinnerReg(saved);
       const method = DINNER_PAYMENT_METHODS.find((m) => m.key === paymentMethod);
       if (method?.online) {
@@ -270,7 +273,7 @@ export default function CelebrityDinnerSignup({ navigateTo, onLogout }) {
     setSuccess("");
     setSaving(true);
     try {
-      const { registration } = await cancelMyGuestCelebrityDinner(EVENT_TYPE);
+      const { registration } = await cancelMyGuestCelebrityDinner(eventType);
       if (registration?.status === "cancelled") {
         setDinnerReg(null);
         setGuestCounts({
@@ -316,7 +319,7 @@ export default function CelebrityDinnerSignup({ navigateTo, onLogout }) {
   return (
     <>
       {nav}
-      <main className="page-wrap onam-reg">
+      <main className="page-wrap regform-reg">
         <header className="event-header">
           <div className="banner-title">Dinner with Celebrity</div>
           <div className="banner-sub-title">{email ? `Signed in as ${email}` : "Book your Dinner with Celebrity seats"}</div>
@@ -326,32 +329,32 @@ export default function CelebrityDinnerSignup({ navigateTo, onLogout }) {
         <section className="form-card">
           <div className="form-body">
             {config.dinnerDate ? (
-              <div className="onam-review-row">
-                <span className="onam-review-label">Date</span>
-                <span className="onam-review-value">{formatDinnerDate(config.dinnerDate)}</span>
+              <div className="regform-review-row">
+                <span className="regform-review-label">Date</span>
+                <span className="regform-review-value">{formatDinnerDate(config.dinnerDate)}</span>
               </div>
             ) : null}
-            <div className="onam-review-row">
-              <span className="onam-review-label">Venue</span>
-              <span className="onam-review-value">{config.venue || "—"}</span>
+            <div className="regform-review-row">
+              <span className="regform-review-label">Venue</span>
+              <span className="regform-review-value">{config.venue || "—"}</span>
             </div>
             {showPriceBreakdown ? (
               <>
-                <div className="onam-review-row">
-                  <span className="onam-review-label">Price — Adult</span>
-                  <span className="onam-review-value">
+                <div className="regform-review-row">
+                  <span className="regform-review-label">Price — Adult</span>
+                  <span className="regform-review-value">
                     {config.currency} {config.dinnerPriceAdults}
                   </span>
                 </div>
-                <div className="onam-review-row">
-                  <span className="onam-review-label">Price — Kid (9-14)</span>
-                  <span className="onam-review-value">
+                <div className="regform-review-row">
+                  <span className="regform-review-label">Price — Kid (9-14)</span>
+                  <span className="regform-review-value">
                     {config.currency} {config.dinnerPriceKids914}
                   </span>
                 </div>
-                <div className="onam-review-row">
-                  <span className="onam-review-label">Price — Kid (6-8)</span>
-                  <span className="onam-review-value">
+                <div className="regform-review-row">
+                  <span className="regform-review-label">Price — Kid (6-8)</span>
+                  <span className="regform-review-value">
                     {config.currency} {config.dinnerPriceKids68}
                   </span>
                 </div>
@@ -361,7 +364,7 @@ export default function CelebrityDinnerSignup({ navigateTo, onLogout }) {
             {config.conditions && !dinnerReg ? <p className="field-note" style={{ marginTop: "6px" }}>{config.conditions}</p> : null}
 
             {returnBanner ? (
-              <p className={returnBanner.status === "paid" ? "success-banner" : "field-note onam-capacity-note"}>
+              <p className={returnBanner.status === "paid" ? "success-banner" : "field-note regform-capacity-note"}>
                 {returnBanner.status === "paid"
                   ? "Payment received — your Dinner with Celebrity booking is confirmed."
                   : "We're still confirming your payment with the provider. This usually takes a moment — refresh in a bit if the status below doesn't update."}
@@ -369,11 +372,11 @@ export default function CelebrityDinnerSignup({ navigateTo, onLogout }) {
             ) : null}
 
             {windowStatus === "not_open" ? (
-              <p className="onam-note" style={{ marginTop: "10px" }}>Registration for the Dinner with Celebrity has not opened yet.</p>
+              <p className="regform-note" style={{ marginTop: "10px" }}>Registration for the Dinner with Celebrity has not opened yet.</p>
             ) : windowStatus === "closed" && !dinnerReg ? (
-              <p className="onam-note" style={{ marginTop: "10px" }}>Registration for the Dinner with Celebrity has closed.</p>
+              <p className="regform-note" style={{ marginTop: "10px" }}>Registration for the Dinner with Celebrity has closed.</p>
             ) : remainingCapacity === 0 && !dinnerReg ? (
-              <p className="onam-note" style={{ marginTop: "10px" }}>The Dinner with Celebrity is fully booked.</p>
+              <p className="regform-note" style={{ marginTop: "10px" }}>The Dinner with Celebrity is fully booked.</p>
             ) : null}
 
             {error ? <div className="error-banner" style={{ marginTop: "10px" }}>{error}</div> : null}
@@ -381,46 +384,46 @@ export default function CelebrityDinnerSignup({ navigateTo, onLogout }) {
 
             {dinnerReg ? (
               <>
-                <div className="onam-review-grid" style={{ marginTop: "10px" }}>
-                  <div className="onam-review-row">
-                    <span className="onam-review-label">Name</span>
-                    <span className="onam-review-value">{dinnerReg.name || "—"}</span>
+                <div className="regform-review-grid" style={{ marginTop: "10px" }}>
+                  <div className="regform-review-row">
+                    <span className="regform-review-label">Name</span>
+                    <span className="regform-review-value">{dinnerReg.name || "—"}</span>
                   </div>
-                  <div className="onam-review-row">
-                    <span className="onam-review-label">Email</span>
-                    <span className="onam-review-value">{dinnerReg.email || "—"}</span>
+                  <div className="regform-review-row">
+                    <span className="regform-review-label">Email</span>
+                    <span className="regform-review-value">{dinnerReg.email || "—"}</span>
                   </div>
-                  <div className="onam-review-row">
-                    <span className="onam-review-label">Payment Method</span>
-                    <span className="onam-review-value">
+                  <div className="regform-review-row">
+                    <span className="regform-review-label">Payment Method</span>
+                    <span className="regform-review-value">
                       {DINNER_PAYMENT_METHODS.find((m) => m.key === (dinnerReg.paymentProvider || dinnerReg.paymentMethod))?.label ||
                         dinnerReg.paymentMethod ||
                         "—"}
                     </span>
                   </div>
-                  <div className="onam-review-row">
-                    <span className="onam-review-label">Payment Status</span>
-                    <span className="onam-review-value">
+                  <div className="regform-review-row">
+                    <span className="regform-review-label">Payment Status</span>
+                    <span className="regform-review-value">
                       <span className={`payment-badge ${dinnerReg.status}`}>{DINNER_STATUS_LABELS[dinnerReg.status] || dinnerReg.status}</span>
                     </span>
                   </div>
                 </div>
-                <div className="onam-price-table" style={{ marginTop: "14px" }}>
-                  <div className="onam-price-head">
+                <div className="regform-price-table" style={{ marginTop: "14px" }}>
+                  <div className="regform-price-head">
                     <div>Item</div>
                     <div>Qty</div>
                     <div>Price</div>
                     <div>Total</div>
                   </div>
                   {dinnerLineItems.map((item) => (
-                    <div className="onam-price-row" key={item.key}>
+                    <div className="regform-price-row" key={item.key}>
                       <div>{item.label}</div>
                       <div>{item.qty}</div>
                       <div>{yen(item.price)}</div>
                       <div>{yen(item.price * item.qty)}</div>
                     </div>
                   ))}
-                  <div className="onam-price-foot">
+                  <div className="regform-price-foot">
                     <div>Total</div>
                     <div />
                     <div />
@@ -552,7 +555,6 @@ export default function CelebrityDinnerSignup({ navigateTo, onLogout }) {
             ) : null}
           </div>
         </section>
-        <EventFooter />
       </main>
     </>
   );

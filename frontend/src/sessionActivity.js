@@ -6,7 +6,7 @@
  * without activity, registrantAuth / adminSession treat their sessions as
  * expired (on top of the tokens' own server-side expiry).
  */
-const ACTIVITY_KEY = "nk-last-activity";
+const ACTIVITY_KEY = "wmf-last-activity";
 export const IDLE_TIMEOUT_MS = 60 * 60 * 1000;
 
 // Activity events fire constantly; persist at most this often.

@@ -1,6 +1,8 @@
 import Navbar from "./Navbar";
+import SiteFooter from "./SiteFooter";
 import { t } from "./i18n";
 import "./publicEvents.css";
+import "./site.css";
 
 /** Common frame for the public event pages: site navigation, content, footer. */
 export default function EventShell({ navigateTo, accent, children, className = "" }) {
@@ -9,13 +11,8 @@ export default function EventShell({ navigateTo, accent, children, className = "
       <Navbar navigateTo={navigateTo} />
       <main className={`pe-page ${className}`} style={accent ? { "--pe-accent": accent } : undefined} id="top">
         {children}
-        <footer className="pe-footer">
-          <button type="button" onClick={() => navigateTo("/events")}>{t("pub.nav.allEvents")}</button>
-          <button type="button" onClick={() => navigateTo("/terms")}>{t("pub.nav.terms")}</button>
-          <button type="button" onClick={() => navigateTo("/privacy")}>{t("pub.nav.privacy")}</button>
-          <button type="button" onClick={() => navigateTo("/cancellation")}>{t("pub.nav.cancellation")}</button>
-        </footer>
       </main>
+      <SiteFooter navigateTo={navigateTo} />
     </>
   );
 }

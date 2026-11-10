@@ -8,7 +8,8 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parents[1] / "frontend" / "src"
 FILES = ("EventManager.jsx", "RichTextEditor.jsx", "FormBuilder.jsx", "DynamicForm.jsx", "EventShell.jsx", "EventsList.jsx",
          "EventPage.jsx", "EventRegister.jsx", "EventRegistered.jsx", "MyEventRegistrations.jsx", "EventRegistrations.jsx",
-         "RegistrationTools.jsx", "CheckIn.jsx")
+         "RegistrationTools.jsx", "CheckIn.jsx", "HomePage.jsx", "SiteFooter.jsx", "SignInPage.jsx", "Navbar.jsx",
+         "auth/AuthPanel.jsx", "auth/AuthCallback.jsx")
 # Keys built at runtime: t(`events.<group>.${x}`) -> every value must exist.
 DYNAMIC = {
     "events.status.": ("draft", "published", "unlisted", "closed", "archived"),
@@ -22,6 +23,10 @@ DYNAMIC = {
                           "date", "file", "consent", "heading", "info", "group"),
     "events.form.op.": ("eq", "ne", "in", "notEmpty", "empty", "gt", "lt"),
     "events.form.mode.": ("build", "test"),
+    "auth.error.": ("account_exists", "user_not_confirmed", "bad_credentials", "code_invalid", "code_expired", "password_policy",
+                    "invalid_input", "rate_limited", "network", "not_configured", "unknown"),
+    "auth.callback.": ("cancelled", "state_mismatch", "expired", "exchange_failed", "provider_error", "not_configured"),
+    "pub.addons.": ("seatReservation", "zoneUpgrade", "entrySlots", "celebrityDinner"),
     "pub.list.": ("upcoming", "past"),
     "pub.sections.": ("agenda", "speakers", "sponsors", "faq", "contact"),
     "pub.status.": ("draft", "published", "closed", "unlisted", "archived", "confirmed", "pending_payment", "waitlisted", "cancelled"),
@@ -41,7 +46,7 @@ class FrontendStringTests(unittest.TestCase):
         self.source = "".join((SRC / f).read_text(encoding="utf-8") for f in FILES)
 
     def test_static_keys_exist(self):
-        keys = set(re.findall(r'\bt\("((?:events|pub|reg|checkin)\.[A-Za-z0-9_.]+)"', self.source))
+        keys = set(re.findall(r'\bt\("((?:events|pub|reg|checkin|site|home|auth)\.[A-Za-z0-9_.]+)"', self.source))
         self.assertTrue(keys)
         self.assertEqual(sorted(k for k in keys if k not in self.catalog), [])
 
@@ -56,7 +61,7 @@ class FrontendStringTests(unittest.TestCase):
     def test_ternary_keys_exist(self):
         for key in re.findall(r'"(events\.form\.core[A-Za-z]+)"', self.source):
             self.assertIn(key, self.catalog)
-        for key in set(re.findall(r'"((?:pub|reg\.detail|checkin)\.[A-Za-z0-9_.]+)"', self.source)):
+        for key in set(re.findall(r'"((?:pub|reg\.detail|checkin|auth|site|home)\.[A-Za-z0-9_.]+)"', self.source)):
             if any(k.startswith(key + ".") for k in self.catalog):
                 continue                                   # a prefix such as prefix="pub.status", not a key
             self.assertIn(key, self.catalog, key)

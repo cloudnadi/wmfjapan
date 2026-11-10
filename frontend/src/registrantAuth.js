@@ -18,12 +18,12 @@
  */
 import { isIdleExpired, markActivity } from "./sessionActivity";
 
-const TOKEN_KEY = "nk-reg-token";
-const EMAIL_KEY = "nk-reg-email";
+const TOKEN_KEY = "wmf-reg-token";
+const EMAIL_KEY = "wmf-reg-email";
 
 // Fired on window whenever the registrant session is saved or cleared in this
 // tab (other tabs learn about it via the native "storage" event).
-export const REGISTRANT_SESSION_EVENT = "nk-registrant-session";
+export const REGISTRANT_SESSION_EVENT = "wmf-registrant-session";
 
 // Treat a token as expired slightly early so a request doesn't race the
 // server-side expiry check.

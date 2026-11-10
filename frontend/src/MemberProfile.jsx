@@ -27,7 +27,7 @@ export default function MemberProfile({ navigateTo }) {
   return (
     <>
       <Navbar navigateTo={navigateTo} />
-      <main className="page-wrap onam-reg">
+      <main className="page-wrap regform-reg">
         <header className="event-header event-header--standalone">
           <div className="banner-title">Member Profile</div>
           <div className="banner-sub-title">{email ? `Signed in as ${email}` : "Your WMF Japan"}</div>

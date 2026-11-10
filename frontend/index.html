@@ -3,24 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WMF Japan | Malayali Community in Japan</title>
-    <meta name="description" content="WMF Japan is the Malayali community association in Japan. Join or renew your NPO membership, register for events and celebrations, and stay connected with the community." />
+    <title>WMF Japan Events</title>
+    <meta name="description" content="Find and register for WMF Japan events. Sign in for member pricing, or register as a guest." />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#151922" />
-    <link rel="canonical" href="https://wmfjapan.cloudnadi.com/" />
+    <link rel="canonical" href="https://wmfevents.cloudnadi.com/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="WMF Japan" />
-    <meta property="og:title" content="WMF Japan | Malayali Community in Japan" />
-    <meta property="og:description" content="WMF Japan is the Malayali community association in Japan. Join or renew your NPO membership, register for events and celebrations, and stay connected with the community." />
-    <meta property="og:url" content="https://wmfjapan.cloudnadi.com/" />
-    <meta property="og:image" content="https://wmfjapan.cloudnadi.com/logo.png" />
+    <meta property="og:title" content="WMF Japan Events" />
+    <meta property="og:description" content="Find and register for WMF Japan events. Sign in for member pricing, or register as a guest." />
+    <meta property="og:url" content="https://wmfevents.cloudnadi.com/" />
+    <meta property="og:image" content="https://wmfevents.cloudnadi.com/logo.png" />
     <meta property="og:image:width" content="300" />
     <meta property="og:image:height" content="163" />
     <meta property="og:image:alt" content="WMF Japan logo" />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="WMF Japan | Malayali Community in Japan" />
-    <meta name="twitter:description" content="WMF Japan is the Malayali community association in Japan. Join or renew your NPO membership, register for events and celebrations, and stay connected with the community." />
-    <meta name="twitter:image" content="https://wmfjapan.cloudnadi.com/logo.png" />
+    <meta name="twitter:title" content="WMF Japan Events" />
+    <meta name="twitter:description" content="Find and register for WMF Japan events. Sign in for member pricing, or register as a guest." />
+    <meta name="twitter:image" content="https://wmfevents.cloudnadi.com/logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
@@ -32,16 +32,14 @@
           {
             "@type": "Organization",
             "name": "WMF Japan",
-            "url": "https://wmfjapan.cloudnadi.com/",
-            "alternateName": "WMF Japan Foundation",
-            "description": "Malayali community association in Japan.",
-            "logo": "https://wmfjapan.cloudnadi.com/logo.png",
-            "email": "info@wmfjapan.com"
+            "url": "https://wmfevents.cloudnadi.com/",
+            "sameAs": ["https://www.wmfjapan.org/"],
+            "logo": "https://wmfevents.cloudnadi.com/logo.png"
           },
           {
             "@type": "WebSite",
             "name": "WMF Japan",
-            "url": "https://wmfjapan.cloudnadi.com/"
+            "url": "https://wmfevents.cloudnadi.com/"
           }
         ]
       }
@@ -50,7 +48,7 @@
       // Apply persisted theme before paint to avoid a flash (default: dark).
       (function () {
         try {
-          var stored = localStorage.getItem("nk-theme");
+          var stored = localStorage.getItem("wmf-theme");
           document.documentElement.setAttribute(
             "data-theme",
             stored === "light" ? "light" : "dark"

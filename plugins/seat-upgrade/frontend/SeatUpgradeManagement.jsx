@@ -680,7 +680,7 @@ export default function SeatUpgradeManagement({ events = [], initialEventType = 
                               {tier.status || "INACTIVE"}
                             </span>
                             {tier.mapRegion ? (
-                              <span className="onam-summary-sub" title="Has a clickable region on the seat map">
+                              <span className="regform-summary-sub" title="Has a clickable region on the seat map">
                                 📍 Mapped
                               </span>
                             ) : null}
@@ -817,12 +817,12 @@ export default function SeatUpgradeManagement({ events = [], initialEventType = 
                           <td>
                             {req.name}
                             <br />
-                            <span className="onam-summary-sub">{req.email}</span>
+                            <span className="regform-summary-sub">{req.email}</span>
                           </td>
                           <td>
-                            <div className="onam-price-table onam-price-table-compact">
+                            <div className="regform-price-table regform-price-table-compact">
                               {(req.zoneBreakdown || []).map((z) => (
-                                <div className="onam-price-row" key={z.tierId}>
+                                <div className="regform-price-row" key={z.tierId}>
                                   <div>{z.tierName}</div>
                                   <div>{z.count}</div>
                                   <div>{yen(z.regularUnitPrice)}</div>
@@ -845,9 +845,9 @@ export default function SeatUpgradeManagement({ events = [], initialEventType = 
                                 { key: "kidsUnder6NonVeg", label: "Kids under 6 — Non-Veg", qty: req.dinnerKidsUnder6NonVegGuests || 0, price: 0 },
                               ].filter((item) => item.qty > 0);
                               return dinnerLineItems.length > 0 ? (
-                                <div className="onam-price-table onam-price-table-compact">
+                                <div className="regform-price-table regform-price-table-compact">
                                   {dinnerLineItems.map((item) => (
-                                    <div className="onam-price-row" key={item.key}>
+                                    <div className="regform-price-row" key={item.key}>
                                       <div>{item.label}</div>
                                       <div>{item.qty}</div>
                                       <div>{yen(item.price)}</div>
@@ -868,7 +868,7 @@ export default function SeatUpgradeManagement({ events = [], initialEventType = 
                               {REQUEST_STATUS_LABELS[req.status] || req.status}
                             </span>
                             {req.status === "refund_requested" && req.refundStatus ? (
-                              <div className="onam-summary-sub" style={{ marginTop: "4px" }}>
+                              <div className="regform-summary-sub" style={{ marginTop: "4px" }}>
                                 {REFUND_STATUS_LABELS[req.refundStatus] || req.refundStatus}
                                 {req.refundReference ? ` (${req.refundReference})` : ""}
                                 {req.refundError ? (
