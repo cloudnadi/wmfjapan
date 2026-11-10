@@ -98,6 +98,25 @@ class DashboardAndTableTests(Base):
         self.assertEqual({t["name"] for t in body["tickets"]}, {"Adult", "Child"})
 
 
+class PaymentSettingsTests(Base):
+    def test_super_admin_saves_and_everyone_with_access_can_read(self):
+        body = {"methods": {"bank": {"enabled": True, "instructions": " Account 123 "}, "paypay": {"enabled": True, "url": "https://pay.example/x"},
+                            "square": {"enabled": True}}}
+        status, resp = self.call("PUT", "payment-methods", {"methods": {"paypay": {"enabled": True, "url": "javascript:x"}}})
+        self.assertEqual((status, "paypay.url" in resp["fields"]), (400, True))
+        self.assertIn("square.url", self.call("PUT", "payment-methods", {"methods": {"square": {"url": "https://x.example"}}})[1]["fields"])
+        status, resp = self.call("PUT", "payment-methods", body)
+        self.assertEqual(status, 200, resp)
+        stored = self.regs.config["payment_methods_config"]["methods"]
+        self.assertEqual((stored["bank"]["instructions"], stored["square"]["url"], stored["paypay"]["enabled"]), ("Account 123", "", True))
+        self.assertEqual(self.call("GET", "payment-methods")[1]["methods"]["bank"]["enabled"], True)
+        self.assertTrue(any(a["entityKey"] == "SETTINGS#payments" for a in self.admin_store.audit))
+
+    def test_event_managers_cannot_change_where_money_goes(self):
+        self.assertEqual(self.call("PUT", "payment-methods", {"methods": {}}, groups="EventManagers")[0], 403)
+        self.assertEqual(self.call("GET", "payment-methods", groups="EventManagers")[0], 200)
+
+
 class ManualAddTests(Base):
     def test_add_with_audit(self):
         reg = self.add("a", paymentStatus="paid", paidVia="cash")

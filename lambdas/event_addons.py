@@ -248,9 +248,9 @@ def public_view(event: dict, counters: dict) -> dict:
         rows = []
         for u in event.get("upgrades") or []:
             used = int(counters.get(f"UPGRADE#{eid}#{u['upgradeId']}", 0))
-            rows.append(_drop_none({"upgradeId": u["upgradeId"], "name": u["name"], "description": u.get("description"),
-                                    "priceJpy": u["priceJpy"],
-                                    "remaining": None if u.get("limit") is None else max(0, int(u["limit"]) - used)}))
+            rows.append({**_drop_none({"upgradeId": u["upgradeId"], "name": u["name"], "description": u.get("description"),
+                                       "priceJpy": u["priceJpy"]}),
+                         "remaining": None if u.get("limit") is None else max(0, int(u["limit"]) - used)})   # null = unlimited
         out["zoneUpgrade"] = {"upgrades": rows}
     if caps.addon_enabled(event, "seatReservation"):
         sections = (event.get("seatMap") or {}).get("sections", [])

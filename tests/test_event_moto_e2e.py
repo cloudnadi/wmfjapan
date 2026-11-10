@@ -358,6 +358,49 @@ class EndToEnd(unittest.TestCase):
             self.assertEqual(status, 200, body)
             self.assertEqual(self.counter(), 0)
 
+    def configure_addons(self):
+        body = {"title": "Picnic", "slug": "picnic", "startsAt": "2026-12-10T10:00:00+09:00", "endsAt": "2026-12-10T16:00:00+09:00",
+                "capacity": 10, "waitlistEnabled": True, "revision": self.revision(),
+                "slots": [{"slotId": "am", "name": "Morning", "capacity": 3}],
+                "upgrades": [{"upgradeId": "vip", "name": "VIP", "priceJpy": 500, "limit": 1}],
+                "seatMap": {"sections": [{"sectionId": "main", "name": "Main", "rows": 1, "seatsPerRow": 4, "extraPriceJpy": 0}]},
+                "capabilities": {"entrySlots": {"enabled": True}, "zoneUpgrade": {"enabled": True}, "seatReservation": {"enabled": True}}}
+        status, resp = self.a("PUT", f"events/{self.eid}", body)
+        self.assertEqual(status, 200, resp)
+
+    def counter_value(self, key):
+        import boto3
+        item = boto3.resource("dynamodb", region_name="ap-northeast-1").Table("counters").get_item(Key={"counterKey": key}).get("Item")
+        return int(item["sold"]) if item else 0
+
+    def test_addons_are_reserved_in_dynamodb_and_a_taken_seat_is_refused(self):
+        self.configure_addons()
+        results = []
+
+        def attempt(n):
+            results.append(self.p("POST", "events/picnic/register", {
+                "tickets": {self.adult: 1}, "paymentMethod": "bank", "answers": {**ANSWERS, "email": f"p{n}@example.com"},
+                "idempotencyKey": f"seat-{n}", "addons": {"entrySlots": {"slotId": "am"}, "seatReservation": {"seats": ["main-A1"]},
+                                                          "zoneUpgrade": {"vip": 1}}}))
+        for n in range(4):                       # (moto is not thread-safe; real concurrency is covered with the locking fake store)
+            attempt(n)
+        codes = sorted(r[0] for r in results)
+        self.assertEqual(codes, [201, 409, 409, 409], results)                    # one seat, one winner
+        self.assertEqual(self.counter_value(f"SEAT#{self.eid}#main-A1"), 1)
+        self.assertEqual(self.counter_value(f"SLOT#{self.eid}#am"), 1)             # the losers took nothing
+        self.assertEqual(self.counter_value(f"UPGRADE#{self.eid}#vip"), 1)
+        self.assertEqual(self.counter(), 1)
+        winner = next(r for r in results if r[0] == 201)[1]["registration"]
+        self.assertEqual(winner["totalJpy"], 2000)
+        status, _ = self.p("DELETE", f"my/registrations/{winner['registrationId']}")           # guests cannot self-cancel...
+        self.assertEqual(status, 401)
+        reg = self.reg_item(winner["registrationId"])
+        status, resp = self.a("POST", f"events/{self.eid}/registrations/{winner['registrationId']}/cancel", {"notify": False})
+        self.assertEqual(status, 200, resp)                                        # ...an organiser can, and everything is returned
+        self.assertEqual(self.counter_value(f"SEAT#{self.eid}#main-A1"), 0)
+        self.assertEqual(self.counter_value(f"SLOT#{self.eid}#am"), 0)
+        self.assertEqual(self.counter_value(f"UPGRADE#{self.eid}#vip"), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

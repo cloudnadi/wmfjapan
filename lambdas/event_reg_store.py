@@ -109,6 +109,10 @@ def get_site_config(key: str) -> dict:
         return {}
 
 
+def put_site_config(key: str, value: dict) -> None:
+    _t(SITE_CONFIG_TABLE).put_item(Item={"configKey": key, "value": json.dumps(value)})
+
+
 # ── registrations ─────────────────────────────────────────────────────────────
 
 def get_registration(reg_id: str) -> Optional[dict]:

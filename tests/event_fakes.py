@@ -36,6 +36,7 @@ class FakeStore:
         self.calls.append("get_counters")
         return {k: self.counters[k] for k in keys if k in self.counters}
     def get_site_config(self, key): return self.config.get(key, {})
+    def put_site_config(self, key, value): self.config[key] = value
 
     # registrations
     def get_registration(self, rid): return copy.deepcopy(self.regs.get(rid))

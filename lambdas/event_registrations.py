@@ -70,6 +70,22 @@ PAYMENT_CONFIG_KEY = "payment_methods_config"
 PAYMENT_LABELS = {"square": "Credit / Debit Card", "paypay": "PayPay", "bank": "Bank Transfer"}
 
 
+def normalize_payment_config(raw) -> dict:
+    """Validate the admin's payment-method settings; returns the clean {"methods": {...}} or raises RegError."""
+    methods_in = raw.get("methods") if isinstance(raw, dict) and isinstance(raw.get("methods"), dict) else {}
+    methods, errors = {}, {}
+    for key in PAYMENT_LABELS:
+        entry = methods_in.get(key) if isinstance(methods_in.get(key), dict) else {}
+        url = str(entry.get("url", "")).strip()
+        if url and (key == "square" or not url.startswith(("http://", "https://"))):
+            errors[f"{key}.url"] = "Use an http:// or https:// link" if key != "square" else "Card payments use Square checkout; no link needed"
+        methods[key] = {"enabled": entry.get("enabled") is True, "url": url if key != "square" else "",
+                        "instructions": str(entry.get("instructions", "")).strip()[:2000]}
+    if errors:
+        raise RegError(400, "Please check the payment settings", errors)
+    return {"methods": methods}
+
+
 def available_payment_methods(store_, square_module=None) -> dict:
     """The methods the admin has switched on (card only if Square is configured), with their instructions."""
     stored = store_.get_site_config(PAYMENT_CONFIG_KEY).get("methods") or {}

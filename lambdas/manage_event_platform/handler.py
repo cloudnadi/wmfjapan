@@ -20,6 +20,8 @@ Lambda: /admin/event-platform/{proxy+}   (Cognito-authorized; roles checked here
   GET    /events/{id}/form/versions/{v}        one stored version
   POST   /events/{id}/form/validate            run the server-side validator on sample answers
   POST   /events/{id}/form/apply               replace the form from {templateId} or {copyFromEventId}
+  GET    /payment-methods                      card / bank / PayPay settings shown at checkout
+  PUT    /payment-methods                      super admin only
   GET    /form-templates                       reusable form templates
   POST   /form-templates                       save {name, fields} or {name, fromEventId} as a template
   GET    /form-templates/{id}                  one template
@@ -759,6 +761,12 @@ def route(event):
 
     if parts == ["me"] and method == "GET":
         return 200, {"roles": sorted(admin_roles.roles_of(event)), "actor": admin_roles.actor_of(event)}
+    if parts == ["payment-methods"]:
+        if method == "GET":
+            return payment_methods_get()
+        if method == "PUT":
+            return payment_methods_save(event, parse_body(event))
+        raise ApiError(405, "Method not allowed")
     if parts and parts[0] == "form-templates":
         if len(parts) == 1 and method == "GET":
             return list_templates()
@@ -840,6 +848,25 @@ def route(event):
         if method == "DELETE":
             return delete_ticket(event, parts[1], parts[3])
     raise ApiError(405, "Method not allowed")
+
+
+def payment_methods_get():
+    stored = regstore.get_site_config(logic.PAYMENT_CONFIG_KEY).get("methods") or {}
+    methods = {}
+    for key in logic.PAYMENT_LABELS:
+        entry = stored.get(key) if isinstance(stored.get(key), dict) else {}
+        methods[key] = {"enabled": entry.get("enabled") is True, "url": entry.get("url", ""), "instructions": entry.get("instructions", "")}
+    return 200, {"methods": methods, "labels": logic.PAYMENT_LABELS, "cardConfigured": bool(square and square.is_configured())}
+
+
+def payment_methods_save(event, body):
+    """Where card/bank/PayPay instructions come from. Super admins only: these are what attendees pay into."""
+    if not admin_roles.has_role(event, admin_roles.SUPER_ADMIN):
+        raise ApiError(403, "Only a super admin can change payment settings")
+    clean = logic.normalize_payment_config(body)
+    regstore.put_site_config(logic.PAYMENT_CONFIG_KEY, clean)
+    audit("SETTINGS#payments", "payments", admin_roles.actor_of(event), "Updated payment methods")
+    return payment_methods_get()
 
 
 def lambda_handler(event, context):
