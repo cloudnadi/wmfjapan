@@ -105,10 +105,10 @@ def available_payment_methods(store_, square_module=None) -> dict:
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def make_registration_id(event_id: str, email: str, key: str, salt: int = 0) -> str:
-    """Readable ID like NK-7QX2-M9PA; deterministic per (event, email, idempotency key)."""
+    """Readable ID like WMF-7QX2-M9PA; deterministic per (event, email, idempotency key)."""
     number = int.from_bytes(hashlib.sha256(f"{event_id}|{email}|{key}|{salt}".encode()).digest()[:5], "big")
     chars = "".join(CROCKFORD[(number >> (5 * i)) & 31] for i in range(8))
-    return f"NK-{chars[:4]}-{chars[4:]}"
+    return f"WMF-{chars[:4]}-{chars[4:]}"
 
 
 def new_check_in_token() -> str:

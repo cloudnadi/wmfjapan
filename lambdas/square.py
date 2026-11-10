@@ -1,15 +1,11 @@
 """
-Square adapter — Checkout API (hosted Payment Links) for credit-card seat
-upgrades, plus webhook signature verification.
+Square adapter — Checkout API (hosted Payment Links) for card payments of
+event registrations, plus webhook signature verification.
 
-Dependency-free (stdlib `urllib` only) for the same reason as paypay.py: this
-repo's Lambdas ship as flat zipped .py files with no pip-install step, so the
-`squareup` SDK isn't an option without adding a packaging pipeline.
-
-Square's Checkout API and webhook signing are stable, long-documented APIs —
-unlike paypay.py, nothing here is a from-memory reconstruction of an obscure
-signing scheme. Still worth a sandbox smoke test (SQUARE_ENV=sandbox) before
-going live, same as any new integration.
+Dependency-free (stdlib `urllib` only): Lambdas ship as flat zipped .py files
+with no pip-install step, so the `squareup` SDK isn't an option without adding
+a packaging pipeline. Worth a sandbox smoke test (SQUARE_ENV=sandbox) before
+going live.
 
 Env vars:
   SQUARE_ACCESS_TOKEN — a Square API access token (sandbox or production).

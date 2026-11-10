@@ -45,7 +45,7 @@ class CreateTests(Base):
         reg, created = self.reg()
         self.assertTrue(created)
         self.assertEqual((reg["status"], reg["paymentStatus"], reg["totalJpy"], reg["seats"]), ("pending_payment", "pending", 3000, 2))
-        self.assertRegex(reg["registrationId"], r"^NK-[0-9A-Z]{4}-[0-9A-Z]{4}$")
+        self.assertRegex(reg["registrationId"], r"^WMF-[0-9A-Z]{4}-[0-9A-Z]{4}$")
         self.assertEqual(reg["holdUntil"], (NOW + timedelta(minutes=30)).isoformat(timespec="seconds"))
         self.assertEqual(reg["checkoutUrl"], "https://square.test/order-1")
         self.assertEqual(self.store.find_by_provider_id("order-1")["registrationId"], reg["registrationId"])

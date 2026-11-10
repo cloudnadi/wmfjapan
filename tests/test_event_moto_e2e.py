@@ -15,7 +15,7 @@ except ImportError:  # pragma: no cover
     mock_aws = None
 
 ROOT = Path(__file__).resolve().parents[1]
-for sub in ("lambdas", "lambdas/manage_event_platform", "plugins/seat-upgrade/backend/lambdas", "tests"):
+for sub in ("lambdas", "lambdas/manage_event_platform", "tests"):
     sys.path.insert(0, str(ROOT / sub))
 
 ENV = {"REGION": "ap-northeast-1", "AWS_DEFAULT_REGION": "ap-northeast-1", "AWS_ACCESS_KEY_ID": "x", "AWS_SECRET_ACCESS_KEY": "x",
@@ -247,7 +247,7 @@ class EndToEnd(unittest.TestCase):
         import boto3
         reg = boto3.resource("dynamodb", region_name="ap-northeast-1").Table("regs").get_item(
             Key={"registrationId": body["registration"]["registrationId"]})["Item"]
-        status, body = self.a("POST", f"events/{self.eid}/check-in", {"code": f"NKEV1.{reg['registrationId']}.{reg['checkInToken']}"})
+        status, body = self.a("POST", f"events/{self.eid}/check-in", {"code": f"WMFEV1.{reg['registrationId']}.{reg['checkInToken']}"})
         self.assertEqual((status, body["result"]), (200, "ok"), body)
 
     # ── Square webhook ────────────────────────────────────────────────────────

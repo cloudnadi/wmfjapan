@@ -13,7 +13,7 @@ import event_mailer as mailer  # noqa: E402
 
 EVENT = {"eventId": "e1", "slug": "picnic", "title": "Autumn <Picnic>", "startsAt": "2026-10-10T10:00:00+09:00",
          "endsAt": "2026-10-11T16:00:00+09:00", "location": {"venueName": "Park", "address": "Tokyo"}}
-REG = {"registrationId": "NK-AAAA-BBBB", "fullName": "Ann <b>Lee</b>", "email": "a@example.com", "checkInToken": "tok",
+REG = {"registrationId": "WMF-AAAA-BBBB", "fullName": "Ann <b>Lee</b>", "email": "a@example.com", "checkInToken": "tok",
        "tickets": [{"name": "Adult", "qty": 2, "subtotalJpy": 3000}], "totalJpy": 3000, "status": "confirmed",
        "paymentStatus": "paid", "paymentMethod": "square"}
 METHODS = {"bank": {"instructions": "Account 123", "url": ""}, "paypay": {"instructions": "", "url": "https://paypay.test/x"}}
@@ -23,9 +23,9 @@ class BuildEmailTests(unittest.TestCase):
     def test_confirmed_default_has_details_and_qr(self):
         subject, text, html, qr = mailer.build_email("confirmed", REG, EVENT, METHODS)
         self.assertIn("confirmed", subject)
-        for needle in ("NK-AAAA-BBBB", "Adult × 2", "¥3,000", "2026-10-10 10:00 JST – 2026-10-11 16:00 JST", "Park, Tokyo"):
+        for needle in ("WMF-AAAA-BBBB", "Adult × 2", "¥3,000", "2026-10-10 10:00 JST – 2026-10-11 16:00 JST", "Park, Tokyo"):
             self.assertIn(needle, text)
-        self.assertEqual(qr, "NKEV1.NK-AAAA-BBBB.tok")
+        self.assertEqual(qr, "WMFEV1.WMF-AAAA-BBBB.tok")
         self.assertIn("cid:qrcode", html)
 
     def test_html_escapes_registrant_and_admin_text(self):
@@ -39,7 +39,7 @@ class BuildEmailTests(unittest.TestCase):
                                                       "body": "Ticket {ticket_type}, id {registration_id}, {unknown}"}}}
         subject, text, _, _ = mailer.build_email("confirmed", REG, event, METHODS)
         self.assertEqual(subject, "Hi Ann <b>Lee</b> - Autumn <Picnic>")
-        self.assertTrue(text.startswith("Ticket Adult × 2, id NK-AAAA-BBBB, {unknown}"))
+        self.assertTrue(text.startswith("Ticket Adult × 2, id WMF-AAAA-BBBB, {unknown}"))
 
     def test_blank_custom_template_falls_back_to_default(self):
         event = {**EVENT, "emails": {"confirmation": {"subject": "", "body": ""}}}
@@ -55,7 +55,7 @@ class BuildEmailTests(unittest.TestCase):
         bank = {**card, "paymentMethod": "bank"}
         text = mailer.build_email("pending_payment", bank, EVENT, METHODS)[1]
         self.assertIn("Account 123", text)
-        self.assertIn("NK-AAAA-BBBB with your payment", text)
+        self.assertIn("WMF-AAAA-BBBB with your payment", text)
         self.assertIn("https://paypay.test/x", mailer.build_email("pending_payment", {**card, "paymentMethod": "paypay"}, EVENT, METHODS)[1])
 
     def test_other_kinds_and_no_qr_without_confirmation(self):
@@ -63,7 +63,7 @@ class BuildEmailTests(unittest.TestCase):
             subject, text, html, qr = mailer.build_email(kind, {**REG, "status": "pending_payment", "paymentStatus": "pending"}, EVENT, METHODS)
             self.assertTrue(subject and text and html)
             self.assertIsNone(qr)
-        self.assertEqual(mailer.build_email("promoted", {**REG, "status": "confirmed"}, EVENT, METHODS)[3], "NKEV1.NK-AAAA-BBBB.tok")
+        self.assertEqual(mailer.build_email("promoted", {**REG, "status": "confirmed"}, EVENT, METHODS)[3], "WMFEV1.WMF-AAAA-BBBB.tok")
 
     def test_mime_structure(self):
         subject, text, html, qr = mailer.build_email("confirmed", REG, EVENT, METHODS)
@@ -74,7 +74,7 @@ class BuildEmailTests(unittest.TestCase):
     def test_qr_png_is_a_valid_square_png(self):
         import struct
         import zlib
-        png = mailer.qr_png("NKEV1.NK-AAAA-BBBB.tok")
+        png = mailer.qr_png("WMFEV1.WMF-AAAA-BBBB.tok")
         self.assertTrue(png.startswith(b"\x89PNG\r\n\x1a\n"))
         width, height, depth, color = struct.unpack(">IIBB", png[16:26])
         self.assertEqual((width == height, depth, color), (True, 8, 0))
@@ -114,7 +114,7 @@ class BrandingTests(unittest.TestCase):
 
     def test_summary_card_and_event_link(self):
         html = self.html()
-        for needle in ("Registration summary", "NK-AAAA-BBBB", "¥3,000", "Park, Tokyo", "https://site.test/events/picnic", "View event details"):
+        for needle in ("Registration summary", "WMF-AAAA-BBBB", "¥3,000", "Park, Tokyo", "https://site.test/events/picnic", "View event details"):
             self.assertIn(needle, html)
 
     def test_payment_card_for_unpaid_registrations(self):

@@ -104,7 +104,7 @@ def summary_block(reg: dict) -> list:
 
 
 def qr_payload(reg: dict) -> str:
-    return f"NKEV1.{reg['registrationId']}.{reg['checkInToken']}"
+    return f"WMFEV1.{reg['registrationId']}.{reg['checkInToken']}"
 
 
 CONTACT_EMAIL = "info@wmfjapan.com"

@@ -731,7 +731,7 @@ def reg_email(event, event_id, body):
         own = actor if "@" in actor else ""
         if not own:
             raise ApiError(400, "Your account has no email address to send the test to")
-        sample = (regs or [{"registrationId": "NK-TEST-0000", "fullName": "Test Person", "tickets": [], "email": own}])[0]
+        sample = (regs or [{"registrationId": "WMF-TEST-0000", "fullName": "Test Person", "tickets": [], "email": own}])[0]
         result = radm.send_bulk(item, [{**sample, "email": own}], subject, text, event_mailer.send_message, pause=0)
         return 200, {**result, "total": 1, "nextOffset": None, "test": True}
     recipients = radm.bulk_recipients(regs, str(body.get("audience", "")))

@@ -30,24 +30,9 @@ resource "aws_s3_bucket_cors_configuration" "assets" {
   }
 }
 
-# Safety net: expire orphaned media objects after 90 days.
+# Safety net: expire event-registration uploads that were never attached.
 resource "aws_s3_bucket_lifecycle_configuration" "assets" {
   bucket = aws_s3_bucket.assets.id
-
-  # Scoped to the prefixes that were previously covered by a blanket "media/"
-  # rule. Event images (media/events/) must not expire.
-  rule {
-    id     = "expire-old-media"
-    status = "Enabled"
-
-    filter {
-      prefix = "media/carousel/"
-    }
-
-    expiration {
-      days = 90
-    }
-  }
 
   # Event-registration uploads that were never attached to a registration. Attached files are copied to
   # event-uploads/ (no expiry) when the registration is created.
@@ -61,19 +46,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "assets" {
 
     expiration {
       days = 2
-    }
-  }
-
-  rule {
-    id     = "expire-old-seat-upgrade-media"
-    status = "Enabled"
-
-    filter {
-      prefix = "media/seat-upgrade/"
-    }
-
-    expiration {
-      days = 90
     }
   }
 }

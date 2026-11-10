@@ -26,7 +26,7 @@ DYNAMIC = {
     "auth.error.": ("account_exists", "user_not_confirmed", "bad_credentials", "code_invalid", "code_expired", "password_policy",
                     "invalid_input", "rate_limited", "network", "not_configured", "unknown"),
     "auth.callback.": ("cancelled", "state_mismatch", "expired", "exchange_failed", "provider_error", "not_configured"),
-    "pub.addons.": ("seatReservation", "zoneUpgrade", "entrySlots", "celebrityDinner"),
+    "pub.addons.": ("seatReservation", "zoneUpgrade", "entrySlots"),
     "pub.list.": ("upcoming", "past"),
     "pub.sections.": ("agenda", "speakers", "sponsors", "faq", "contact"),
     "pub.status.": ("draft", "published", "closed", "unlisted", "archived", "confirmed", "pending_payment", "waitlisted", "cancelled"),

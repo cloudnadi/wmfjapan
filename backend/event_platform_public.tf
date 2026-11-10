@@ -69,7 +69,7 @@ data "archive_file" "event_platform_public" {
   }
 
   source {
-    content  = file("${path.module}/../plugins/seat-upgrade/backend/lambdas/square.py")
+    content  = file("${path.module}/../lambdas/square.py")
     filename = "square.py"
   }
 }
@@ -92,7 +92,7 @@ data "archive_file" "event_platform_webhook" {
   }
 
   source {
-    content  = file("${path.module}/../plugins/seat-upgrade/backend/lambdas/square.py")
+    content  = file("${path.module}/../lambdas/square.py")
     filename = "square.py"
   }
 }

@@ -3,7 +3,6 @@
 # `unittest discover` run has cross-file collisions). Usage: scripts/run_tests.sh [pattern]
 set -u
 cd "$(dirname "$0")/.."
-export PYTHONPATH="plugins/seat-selection/backend:plugins/seat-upgrade/backend/lambdas${PYTHONPATH:+:$PYTHONPATH}"
 failed=()
 for f in tests/test_${1:-*}.py; do
   mod="tests.$(basename "$f" .py)"

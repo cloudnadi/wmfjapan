@@ -284,9 +284,9 @@ class CheckInTests(Base):
         return adm.check_in(reg, token, kw.pop("event_id", "e1"), "staff@x", NOW, **kw)
 
     def test_scan_parsing(self):
-        self.assertEqual(adm.parse_scan("NKEV1.NK-AAAA-BBBB.tok_en-1"), ("NK-AAAA-BBBB", "tok_en-1"))
-        self.assertEqual(adm.parse_scan(" nk-aaaa-bbbb "), ("NK-AAAA-BBBB", None))
-        for bad in ("", None, "NKEV1.", "NKEV1.only", "NKEV1..tok"):
+        self.assertEqual(adm.parse_scan("WMFEV1.WMF-AAAA-BBBB.tok_en-1"), ("WMF-AAAA-BBBB", "tok_en-1"))
+        self.assertEqual(adm.parse_scan(" wmf-aaaa-bbbb "), ("WMF-AAAA-BBBB", None))
+        for bad in ("", None, "WMFEV1.", "WMFEV1.only", "WMFEV1..tok"):
             self.assertIsNone(adm.parse_scan(bad), bad)
 
     def test_check_in_then_already(self):
@@ -373,7 +373,7 @@ class BulkTests(Base):
         out = adm.send_bulk(self.event, adm.bulk_recipients(self.regs, "active"), "Hello {name}", "Event {event_title}, id {registration_id}", send, pause=0)
         self.assertEqual((out["sent"], out["failed"]), (2, ["b@example.com"]))
         self.assertEqual(sent[0][:2], ("a@example.com", "Hello Ann"))
-        self.assertIn("Event Picnic, id NK-", sent[0][2])
+        self.assertIn("Event Picnic, id WMF-", sent[0][2])
 
 
 if __name__ == "__main__":

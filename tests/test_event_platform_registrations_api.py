@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-for sub in ("lambdas", "lambdas/manage_event_platform", "plugins/seat-upgrade/backend/lambdas", "tests"):
+for sub in ("lambdas", "lambdas/manage_event_platform", "tests"):
     sys.path.insert(0, str(ROOT / sub))
 os.environ.setdefault("REGION", "ap-northeast-1")
 
@@ -141,7 +141,7 @@ class ActionTests(Base):
         reg = self.add("a")
         rid = reg["registrationId"]
         status, body = self.call("GET", f"events/{self.eid}/registrations/{rid}")
-        self.assertEqual((status, body["qr"].startswith("NKEV1.NK-"), body["form"]["version"]), (200, True, 1))
+        self.assertEqual((status, body["qr"].startswith("WMFEV1.WMF-"), body["form"]["version"]), (200, True, 1))
         self.assertNotIn("checkInToken", json.dumps(body["registration"]))
         status, body = self.call("PUT", f"events/{self.eid}/registrations/{rid}", {"revision": 1, "adminNote": "VIP", "answers": {**reg["answers"], "fullName": "Ann L."}})
         self.assertEqual((status, body["registration"]["fullName"], body["registration"]["revision"]), (200, "Ann L.", 2))
@@ -202,7 +202,7 @@ class CheckInApiTests(Base):
         super().setUp()
         self.reg = self.add("a", paymentStatus="paid", paidVia="cash")
         self.stored = self.regs.regs[self.reg["registrationId"]]
-        self.code = f"NKEV1.{self.reg['registrationId']}.{self.stored['checkInToken']}"
+        self.code = f"WMFEV1.{self.reg['registrationId']}.{self.stored['checkInToken']}"
 
     def scan(self, code, **kw):
         status, body = self.call("POST", f"events/{self.eid}/check-in", {"code": code, **kw})
@@ -218,7 +218,7 @@ class CheckInApiTests(Base):
         self.assertEqual(sum(1 for a in self.admin_store.audit if a["action"] == "check-in"), 3)
 
     def test_bad_codes(self):
-        for code in ("", "garbage", f"NKEV1.{self.reg['registrationId']}.wrongtoken", "NKEV1.NK-NONE-NONE.x", None):
+        for code in ("", "garbage", f"WMFEV1.{self.reg['registrationId']}.wrongtoken", "WMFEV1.WMF-NONE-NONE.x", None):
             self.assertEqual(self.scan(code)["result"], "not_found", code)
         other = self.call("POST", "events", {**BASE, "slug": "other", "title": "Other"})[1]["event"]["eventId"]
         status, body = self.call("POST", f"events/{other}/check-in", {"code": self.code})

@@ -15,7 +15,7 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-for sub in ("lambdas", "plugins/seat-upgrade/backend/lambdas", "tests"):
+for sub in ("lambdas", "tests"):
     sys.path.insert(0, str(ROOT / sub))
 os.environ.setdefault("REGION", "ap-northeast-1")
 os.environ["ATTENDEE_USER_POOL_ID"] = "ap-northeast-1_TESTPOOL"
@@ -204,7 +204,7 @@ class RegisterTests(Base):
     def test_free_confirmed_registration_has_qr_and_online_link(self):
         body = self.register({"tickets": {"free": 1}, "paymentMethod": None})[1]
         self.assertEqual(body["registration"]["status"], "confirmed")
-        self.assertTrue(body["qr"].startswith("NKEV1.NK-"))
+        self.assertTrue(body["qr"].startswith("WMFEV1.WMF-"))
         self.assertEqual(body["event"]["location"]["onlineUrl"], "https://zoom.test/secret")     # attendees only
 
     def test_signed_in_registration_links_the_account_and_charges_the_same_price(self):
@@ -336,7 +336,7 @@ class TokenViewTests(Base):
         rid = self.reg["registrationId"]
         for query in (None, {"token": "wrong"}, {"token": ""}):
             self.assertEqual(self.call("GET", f"registrations/{rid}", query=query)[0], 404)
-        self.assertEqual(self.call("GET", "registrations/NK-NOPE-NOPE", query=self.q)[0], 404)
+        self.assertEqual(self.call("GET", "registrations/WMF-NOPE-NOPE", query=self.q)[0], 404)
         status, body, _ = self.call("GET", f"registrations/{rid}", query=self.q)
         self.assertEqual((status, body["registration"]["status"]), (200, "pending_payment"))
 
@@ -396,7 +396,7 @@ class SelfServiceTests(Base):
         other = mint("l@example.com")
         for method in ("GET", "PUT", "DELETE"):
             self.assertEqual(self.call(method, f"my/registrations/{self.rid}", {"answers": {}}, token=other)[0], 404, method)
-        self.assertEqual(self.call("GET", "my/registrations/NK-NONE-NONE", token=self.token)[0], 404)
+        self.assertEqual(self.call("GET", "my/registrations/WMF-NONE-NONE", token=self.token)[0], 404)
 
     def test_after_registration_closes_only_organisers_can_change(self):
         self.store.events["e1"]["registrationClosesAt"] = (NOW - timedelta(hours=1)).isoformat()
@@ -470,7 +470,7 @@ class StoreTransactionTests(unittest.TestCase):
         p = mock.patch.object(real, "client", self.client)
         p.start()
         self.addCleanup(p.stop)
-        self.reg = {"registrationId": "NK-1", "eventId": "e1", "status": "confirmed", "total": 1.5}
+        self.reg = {"registrationId": "WMF-1", "eventId": "e1", "status": "confirmed", "total": 1.5}
 
     def cancel(self, codes):
         from botocore.exceptions import ClientError
@@ -501,7 +501,7 @@ class StoreTransactionTests(unittest.TestCase):
         self.assertEqual(ctx.exception.scope, "ticket")
         self.cancel(["ConditionalCheckFailed", "None"])
         with self.assertRaises(logic.StateConflict):
-            self.real.release("NK-1", "confirmed", {"status": "cancelled"}, [("EVENT#e1", 1)])
+            self.real.release("WMF-1", "confirmed", {"status": "cancelled"}, [("EVENT#e1", 1)])
 
     def test_request_bigger_than_limit_fails_without_calling_dynamo(self):
         with self.assertRaises(logic.CapacityFull):
@@ -511,7 +511,7 @@ class StoreTransactionTests(unittest.TestCase):
     def test_release_shape(self):
         self.client.transact_write_items.return_value = {}
         with mock.patch.object(self.real, "get_registration", return_value={}):
-            self.real.release("NK-1", "confirmed", {"status": "cancelled"}, [("EVENT#e1", 2)], remove=["holdUntil"])
+            self.real.release("WMF-1", "confirmed", {"status": "cancelled"}, [("EVENT#e1", 2)], remove=["holdUntil"])
         items = self.client.transact_write_items.call_args.kwargs["TransactItems"]
         self.assertEqual(items[0]["Update"]["ConditionExpression"], "#st = :es")
         self.assertIn("REMOVE", items[0]["Update"]["UpdateExpression"])

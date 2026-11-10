@@ -21,7 +21,7 @@ FORM2 = {"version": 2, "fields": m.default_form_fields() + [
     {"key": "photo", "type": "file", "label": "Photo", "validation": {"maxSizeMb": 1, "allowedTypes": ["image/png"]}},
     {"key": "tags", "type": "multiselect", "label": "Tags", "options": [{"value": "a", "label": "A"}]}]}
 TICKETS = [{"ticketTypeId": "a", "name": "Adult"}, {"ticketTypeId": "c", "name": "Child"}]
-REG = {"registrationId": "NK-AAAA-BBBB", "status": "confirmed", "paymentStatus": "paid", "paymentMethod": "bank", "totalJpy": 3000,
+REG = {"registrationId": "WMF-AAAA-BBBB", "status": "confirmed", "paymentStatus": "paid", "paymentMethod": "bank", "totalJpy": 3000,
        "seats": 3, "createdAt": "2026-09-01T12:00:00+09:00", "checkedInAt": "2026-10-10T18:05:00+09:00",
        "tickets": [{"ticketTypeId": "a", "name": "Adult", "qty": 2}, {"ticketTypeId": "c", "name": "Child", "qty": 1}],
        "answers": {"fullName": "Ann Lee", "email": "a@b.co", "diet": "vegan", "old": "legacy answer",
@@ -52,7 +52,7 @@ class ColumnTests(unittest.TestCase):
 
     def test_table_has_ticket_columns_and_one_row_per_registration(self):
         cols = x.answer_columns([FORM2], [REG])
-        rows = x.export_table([REG, {**REG, "registrationId": "NK-2", "tickets": [{"ticketTypeId": "c", "name": "Child", "qty": 4}]}], cols, TICKETS)
+        rows = x.export_table([REG, {**REG, "registrationId": "WMF-2", "tickets": [{"ticketTypeId": "c", "name": "Child", "qty": 4}]}], cols, TICKETS)
         header = rows[0]
         self.assertEqual(len(rows), 3)
         self.assertEqual(header[:3], ["Registration ID", "Status", "Payment status"])

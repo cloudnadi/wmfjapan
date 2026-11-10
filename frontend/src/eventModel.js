@@ -64,7 +64,7 @@ export function normalizeEvent(raw) {
     tags: [],
     location: {},
     longDescription: "",
-    viewer: { loggedIn: false, email: "", name: "", memberPricing: false, system: {} },
+    viewer: { loggedIn: false, email: "", name: "", system: {} },
     paymentMethods: [],
     ...raw,
     registration: { window: "open", allowed: true, reason: "ok", waitlist: false, ...(raw.registration || {}) },

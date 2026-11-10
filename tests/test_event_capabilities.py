@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-for sub in ("lambdas", "plugins/seat-upgrade/backend/lambdas", "tests"):
+for sub in ("lambdas", "tests"):
     sys.path.insert(0, str(ROOT / sub))
 os.environ.setdefault("REGION", "ap-northeast-1")
 os.environ["ATTENDEE_USER_POOL_ID"] = "ap-northeast-1_TESTPOOL"

@@ -8,7 +8,7 @@ from datetime import timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-for sub in ("lambdas", "plugins/seat-upgrade/backend/lambdas", "lambdas/manage_event_platform", "tests"):
+for sub in ("lambdas", "lambdas/manage_event_platform", "tests"):
     sys.path.insert(0, str(ROOT / sub))
 
 import event_model as m  # noqa: E402

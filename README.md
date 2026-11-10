@@ -1,166 +1,60 @@
 # WMF Japan Events (wmfevents.cloudnadi.com)
 
-Event registration site for [WMF Japan](https://www.wmfjapan.org/), a generic front end for the event platform in this repository. Events, tickets, forms, availability and per-event features come from the platform; attendee sign-in uses Amazon Cognito and guests can register without an account. Start with [docs/WMF_EVENTS_SITE.md](docs/WMF_EVENTS_SITE.md).
+Event registration and management site for [WMF Japan](https://www.wmfjapan.org/). One platform does everything: organisers create events, tickets, registration forms and add-ons (entry slots, zone upgrades, seat reservation) in the console at `/admin`; attendees browse events, register as guests or with an Amazon Cognito account (email or social sign-in), pay by card / bank transfer / PayPay, and receive a QR ticket that is scanned at the door. There are no memberships and nothing is specific to one event.
 
-This project includes:
+Start with [docs/WMF_EVENTS_SITE.md](docs/WMF_EVENTS_SITE.md).
 
-- `backend/` Terraform for AWS infrastructure
-- `lambdas/` Python Lambda handlers
-- `frontend/` React (Vite) web app
-- `scripts/` operational scripts (Lambda packaging, member CSV import)
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `frontend/` | React 18 + Vite SPA (public site, attendee sign-in, organiser console, check-in scanner) |
+| `lambdas/` | Python Lambdas (boto3 only): public API, admin API, payment webhook, hold-expiry job, and their shared modules |
+| `backend/` | Terraform: API Gateway, Lambdas, DynamoDB, two Cognito pools, S3/CloudFront, SES, alarms |
+| `scripts/` | `run_tests.sh`, `deploy_frontend.sh`, `package_lambdas.sh` |
+| `tests/` | Backend tests (stdlib `unittest`; `moto` for the end-to-end DynamoDB test) |
+| `docs/` | Site, Cognito and deployment guide; organiser guide |
 
 ## Documentation
 
-- [docs/WMF_EVENTS_SITE.md](docs/WMF_EVENTS_SITE.md) — **events site**: architecture, Cognito setup, guest checkout, per-event features, deployment, migration/rollback
-- [EVENT_PLATFORM.md](EVENT_PLATFORM.md) — event platform data model and phases; [docs/EVENT_ADMIN_GUIDE.md](docs/EVENT_ADMIN_GUIDE.md) — admin how-to
-- [MULTI_EVENT_ARCHITECTURE.md](MULTI_EVENT_ARCHITECTURE.md) — multi-event data model, tables, and API routes
-- [ADMIN_DASHBOARD_SETUP.md](ADMIN_DASHBOARD_SETUP.md) — Cognito admin auth, dashboard tabs (Registrations / Events / Users / Partners)
-- [MEMBER_LOGIN_GATE.md](MEMBER_LOGIN_GATE.md) — members master list, login gate, and CSV import
-- [SEAT_SELECTION.md](SEAT_SELECTION.md) — Celebrity Event seat map, seat locking, and admin seat management
-- [CLOUDFRONT_DEPLOYMENT.md](CLOUDFRONT_DEPLOYMENT.md) — S3 + CloudFront frontend hosting
+- [docs/WMF_EVENTS_SITE.md](docs/WMF_EVENTS_SITE.md) — architecture, look and feel, configuration, Cognito setup, social sign-in, guest checkout, per-event add-ons, deployment, items needing WMF Japan input
+- [EVENT_PLATFORM.md](EVENT_PLATFORM.md) — data model, registration rules, add-ons, admin API, security notes
+- [docs/EVENT_ADMIN_GUIDE.md](docs/EVENT_ADMIN_GUIDE.md) — organiser how-to
+- [CLOUDFRONT_DEPLOYMENT.md](CLOUDFRONT_DEPLOYMENT.md) — S3 + CloudFront hosting details
 
-## Frontend (React)
-
-The frontend has been migrated from static HTML/JS to a React application.
-
-### Run locally
+## Run locally
 
 ```bash
 cd frontend
 npm ci
-cp .env.example .env.local   # then fill in the placeholders
-npm run dev
-npm test                     # unit/component tests (Vitest)
+cp .env.example .env.local     # fill in the placeholders
+npm run dev                    # http://localhost:5173
+npm test                       # Vitest
+npm run build                  # frontend/dist
 ```
-
-### Configure the API and sign-in
-
-The app reads the public API base URL from `VITE_API_BASE_URL` and the attendee Cognito settings from `VITE_AUTH_*`
-(see [`frontend/.env.example`](frontend/.env.example) and [docs/WMF_EVENTS_SITE.md](docs/WMF_EVENTS_SITE.md)). There is no
-built-in fallback URL: an unset `VITE_API_BASE_URL` means API calls fail visibly instead of hitting some other stack.
-
-### Build for S3 static hosting
 
 ```bash
-cd frontend
-npm run build
+pip install boto3 openpyxl "moto[dynamodb]"
+scripts/run_tests.sh           # every backend test file in its own process
 ```
 
-Production files are generated in `frontend/dist/`.
+The frontend is configured only through public `VITE_*` build variables (see `frontend/.env.example`). Never put a secret in one.
 
-Upload the contents of `frontend/dist/` to your S3 bucket (configured for static website hosting), then optionally place CloudFront in front for HTTPS and caching.
+## Deploy
 
-## Preview Environment
+Infrastructure is Terraform in `backend/`; the GitHub Actions workflows (`.github/workflows/deploy-preview.yml`, `deploy-production.yml`, manual dispatch) run Terraform, build the frontend with the Terraform outputs injected as `VITE_*`, sync `frontend/dist` to S3 and invalidate CloudFront.
 
-You can run a full preview stack (separate API stage, Lambda resources, DynamoDB tables, and frontend domain) using Terraform `environment = "preview"`.
+Nothing environment-specific is committed. Provide, per environment:
 
-1. Create preview backend variables:
+1. **Terraform variables** (a git-ignored `backend/terraform.<env>.tfvars`, or the `TFVARS_PREVIEW` / `TFVARS_PRODUCTION` secret in CI). The variables are declared in `backend/variables.tf`; the ones without a sensible default are `project_name`, `ses_from_email`, `admin_email`, `cognito_admin_email` and, for the custom domain, `frontend_domain` / `route53_zone_id` / `enable_domain_management`. Square credentials (`square_access_token`, `square_location_id`, `square_events_webhook_*`) are optional until card payments are used.
+2. **Remote state:** `terraform init -reconfigure -backend-config=backend.<env>.hcl` with a git-ignored file containing `bucket`, `key`, `region` (and `encrypt = true`). CI reads the `TF_STATE_BUCKET` secret and the optional `TF_STATE_KEY_PREFIX` variable (default `wmfjapan`).
+3. **GitHub:** repository variable `AWS_REGION`; environment secrets `AWS_ROLE_TO_ASSUME` (OIDC, recommended) or `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`, `TF_STATE_BUCKET`, `TFVARS_PREVIEW`, `TFVARS_PRODUCTION`. Use GitHub Environments named `preview` and `production`, with required reviewers on `production`.
 
 ```bash
 cd backend
-cp terraform.preview.tfvars.example terraform.preview.tfvars
-cp backend.preview.hcl.example backend.preview.hcl
-```
-
-1. Edit `terraform.preview.tfvars` with real values, then deploy preview:
-
-```bash
 terraform init -reconfigure -backend-config=backend.preview.hcl
-terraform plan -var-file=terraform.preview.tfvars
+terraform plan  -var-file=terraform.preview.tfvars
 terraform apply -var-file=terraform.preview.tfvars
 ```
 
-1. Configure preview frontend env:
-
-```bash
-cd ../frontend
-cp env.preview.example .env.preview
-```
-
-1. Build frontend using preview mode variables:
-
-```bash
-npm run build:preview
-```
-
-1. Deploy `frontend/dist/` to the preview S3 bucket from preview Terraform outputs.
-
-## GitHub Actions Deployment Workflows
-
-Two workflows are available:
-
-1. `.github/workflows/deploy-preview.yml`
-1. `.github/workflows/deploy-production.yml`
-
-Both workflows run Terraform in `backend/`, build the frontend in `frontend/`, sync `frontend/dist` to S3, and invalidate CloudFront.
-
-Required GitHub configuration:
-
-1. Repository variable: `AWS_REGION` (example: `ap-northeast-1`).
-1. Environment secrets for `preview` and `production`:
-1. `AWS_ROLE_TO_ASSUME` (recommended, for OIDC) or `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`.
-1. `TFVARS_PREVIEW` for preview environment (full contents of preview tfvars file).
-1. `TFVARS_PRODUCTION` for production environment (full contents of production tfvars file).
-
-Recommended setup:
-
-1. Use GitHub Environments named `preview` and `production`.
-1. Enable required reviewers on the `production` environment for manual approval.
-1. Configure Terraform remote state (S3 backend with lockfile) before using CI deployments.
-
-## Terraform S3 Backend (Remote State)
-
-This repository now uses a partial backend block (`backend "s3" {}`) in Terraform, and the concrete backend values are provided during `terraform init`.
-
-For local preview:
-
-```bash
-cd backend
-cp backend.preview.hcl.example backend.preview.hcl
-terraform init -reconfigure -backend-config=backend.preview.hcl
-```
-
-For local production:
-
-```bash
-cd backend
-cp backend.production.hcl.example backend.production.hcl
-terraform init -reconfigure -backend-config=backend.production.hcl
-```
-
-For GitHub Actions workflows, configure these environment secrets:
-
-1. `TF_STATE_BUCKET`
-
-Optional repository variable:
-
-1. `TF_STATE_KEY_PREFIX` (default: `wmfjapan`)
-
-To configure these values interactively with the GitHub CLI, authenticate with
-`gh auth login` and run this from the repository root:
-
-```bash
-./scripts/configure_github_actions.sh
-```
-
-The script creates the `AWS_REGION` and `TF_STATE_KEY_PREFIX` repository
-variables, then configures the `preview` and `production` environment secrets.
-It reads the Terraform variable files locally and sends their contents directly
-to GitHub without putting them in command-line arguments. Set `GH_REPO=OWNER/REPOSITORY`
-when running the script outside a checked-out GitHub repository.
-
-### GitHub OIDC role for workflows
-
-The deployment and `import-members.yml` workflows can use a GitHub OIDC role
-instead of stored AWS access keys. Apply the Terraform in `backend/` with
-`create_github_actions_oidc_provider = true` in exactly one state (normally
-production) to create the account-level GitHub OIDC provider. Set it to `false`
-in every other state, where Terraform reads the already-created provider.
-
-Terraform outputs `github_actions_deploy_role_arn`. Add that value as
-the `AWS_ROLE_TO_ASSUME` secret on both GitHub Environments (`preview` and
-`production`). This is one shared, account-level `github-actions-deploy` role.
-It trusts only GitHub Actions OIDC tokens issued for the
-`cloudnadi/wmfjapan` repository. It uses the AWS-managed `AdministratorAccess` policy because the
-deployment workflows run Terraform apply across the full application
-infrastructure; access is bounded by the OIDC repository trust policy.
+After the first apply, create the first organiser with the `create_admin_user_command` output. See [docs/WMF_EVENTS_SITE.md](docs/WMF_EVENTS_SITE.md) for the production checklist (domain, Cognito, social providers, Square webhook).

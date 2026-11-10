@@ -12,8 +12,6 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "lambdas"))
 sys.path.insert(0, str(ROOT / "lambdas" / "manage_event_platform"))
-sys.path.insert(0, str(ROOT / "lambdas" / "membership"))                           # npo_membership (via event_members)
-sys.path.insert(0, str(ROOT / "plugins" / "seat-upgrade" / "backend" / "lambdas"))   # square
 os.environ.setdefault("REGION", "ap-northeast-1")
 
 import admin_roles  # noqa: E402

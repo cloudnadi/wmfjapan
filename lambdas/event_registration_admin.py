@@ -288,9 +288,9 @@ def refund(reg: dict, body: dict, actor: str, now, payments) -> dict:
 # ── check-in ──────────────────────────────────────────────────────────────────
 
 def parse_scan(text: str) -> Optional[tuple]:
-    """(registrationId, token) from a QR payload "NKEV1.<id>.<token>", or (id, None) for a typed registration ID."""
+    """(registrationId, token) from a QR payload "WMFEV1.<id>.<token>", or (id, None) for a typed registration ID."""
     text = str(text or "").strip()
-    if text.startswith("NKEV1."):
+    if text.startswith("WMFEV1."):
         parts = text.split(".", 2)
         return (parts[1], parts[2]) if len(parts) == 3 and parts[1] and parts[2] else None
     return (text.upper(), None) if text else None
