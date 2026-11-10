@@ -88,27 +88,12 @@ resource "aws_api_gateway_deployment" "main" {
   rest_api_id = aws_api_gateway_rest_api.main.id
 
   triggers = {
-    # Redeploy when any method/integration changes
-    redeployment = sha1(jsonencode([
-      aws_api_gateway_resource.public_proxy,
-      aws_api_gateway_method.public_any,
-      aws_api_gateway_integration.public_any,
-      aws_api_gateway_method.public_options,
-      aws_api_gateway_integration.public_options,
-      aws_api_gateway_integration_response.public_options,
-      aws_api_gateway_resource.admin_event_platform_proxy,
-      aws_api_gateway_method.admin_event_platform_any,
-      aws_api_gateway_integration.admin_event_platform_any,
-      aws_api_gateway_method.admin_event_platform_options,
-      aws_api_gateway_integration.admin_event_platform_options,
-      aws_api_gateway_integration_response.admin_event_platform_options,
-      aws_api_gateway_resource.webhooks_event_registrations_provider,
-      aws_api_gateway_method.webhooks_event_registrations_post,
-      aws_api_gateway_integration.webhooks_event_registrations_post,
-      aws_api_gateway_gateway_response.default_4xx,
-      aws_api_gateway_gateway_response.default_5xx,
-      aws_api_gateway_gateway_response.unauthorized,
-      aws_api_gateway_gateway_response.access_denied,
+    # Redeploy whenever the API definition changes. Hashing the source files (known at plan time) instead of
+    # resource objects avoids "inconsistent final plan": object attributes such as ids are only known at apply.
+    redeployment = sha1(join("", [
+      filesha1("${path.module}/api_gateway.tf"),
+      filesha1("${path.module}/event_platform_public.tf"),
+      filesha1("${path.module}/event_platform_admin.tf"),
     ]))
   }
 
