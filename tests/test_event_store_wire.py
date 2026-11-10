@@ -10,7 +10,7 @@ from pathlib import Path
 from botocore.stub import Stubber
 
 ROOT = Path(__file__).resolve().parents[1]
-for sub in ("lambdas", "lambdas/manage_event_platform", "lambdas/membership", "plugins/seat-upgrade/backend/lambdas"):
+for sub in ("lambdas", "lambdas/manage_event_platform"):
     sys.path.insert(0, str(ROOT / sub))
 os.environ.setdefault("REGION", "ap-northeast-1")
 os.environ.setdefault("AWS_ACCESS_KEY_ID", "x")

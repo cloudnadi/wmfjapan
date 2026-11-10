@@ -16,7 +16,7 @@ const ACCESS_TOKEN_KEY = "adminAccessToken";
 const REFRESH_TOKEN_KEY = "adminRefreshToken";
 const EMAIL_KEY = "adminEmail";
 
-export const ADMIN_SESSION_EVENT = "nk-admin-session";
+export const ADMIN_SESSION_EVENT = "wmf-admin-session";
 
 function read(key) {
   try {

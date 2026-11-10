@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SEARCH = [ROOT / "lambdas", ROOT / "lambdas" / "membership", ROOT / "plugins" / "seat-upgrade" / "backend" / "lambdas"]
+SEARCH = [ROOT / "lambdas"]
 ARCHIVES = {
     "manage_event_platform": ("event_platform_admin.tf", "manage_event_platform"),
     "event_platform_public": ("event_platform_public.tf", "event_platform_public"),

@@ -146,7 +146,7 @@ export default function CheckIn({ navigateTo }) {
       getEvent(eventId).then((r) => setEvent(r.event)).catch((e) => setError(e.message));
       loadStats();
     } else {
-      listEvents().then((r) => setEvents(r.events.filter((e) => e.source !== "legacy" && ["published", "unlisted", "closed"].includes(e.status)))).catch((e) => setError(e.message));
+      listEvents().then((r) => setEvents(r.events.filter((e) => ["published", "unlisted", "closed"].includes(e.status)))).catch((e) => setError(e.message));
     }
   }, [signedIn, eventId, loadStats]);
 
@@ -232,7 +232,7 @@ export default function CheckIn({ navigateTo }) {
       <form className="ci-manual" onSubmit={(e) => { e.preventDefault(); if (code.trim()) { handle(code.trim()); setCode(""); } }}>
         <div className="field">
           <label htmlFor="ci-code">{t("checkin.typeId")}</label>
-          <input id="ci-code" value={code} onChange={(e) => setCode(e.target.value)} autoCapitalize="characters" autoComplete="off" placeholder="NK-XXXX-XXXX" />
+          <input id="ci-code" value={code} onChange={(e) => setCode(e.target.value)} autoCapitalize="characters" autoComplete="off" placeholder="WMF-XXXX-XXXX" />
         </div>
         <button type="submit" className="button primary" disabled={busy}>{t("checkin.submit")}</button>
       </form>

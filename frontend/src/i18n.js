@@ -1,14 +1,15 @@
 /**
  * Minimal i18n: string catalogs keyed by dotted ids, `{name}` placeholders.
  *
- * Only English is bundled today. To add Japanese or Malayalam, create
- * locales/ja.json / locales/ml.json with the same keys and register them in
- * CATALOGS; missing keys fall back to English, then to the key itself.
+ * English is complete. Japanese is registered with an EMPTY catalog (locales/ja.json): every key it lacks falls
+ * back to English, so translations can be added key by key, with no component changes, and be reviewed by
+ * WMF Japan before they ship. Missing keys fall back to English, then to the key itself.
  */
 import en from "./locales/en.json";
+import ja from "./locales/ja.json";
 
-const CATALOGS = { en };
-const STORAGE_KEY = "nk-locale";
+const CATALOGS = { en, ja };
+const STORAGE_KEY = "wmf-locale";
 
 let locale = "en";
 try {
@@ -18,15 +19,28 @@ try {
   // storage unavailable: stay on English
 }
 
+export const availableLocales = () => Object.keys(CATALOGS);
+
+function applyDocumentLanguage() {
+  try {
+    document.documentElement.setAttribute("lang", locale);
+  } catch {
+    // not in a browser
+  }
+}
+
 export function setLocale(next) {
   if (!CATALOGS[next]) return;
   locale = next;
+  applyDocumentLanguage();
   try {
     localStorage.setItem(STORAGE_KEY, next);
   } catch {
     // no-op
   }
 }
+
+applyDocumentLanguage();
 
 export function getLocale() {
   return locale;

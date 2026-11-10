@@ -4,13 +4,15 @@ terraform/.terraform.lock.hcl
 terraform/terraform.tfvars
 terraform/tfplan
 *.tfstate
+# Deployment values and secrets live in CI secrets / local untracked files; never commit them.
+backend/*.tfvars
+backend/backend.*.hcl
 *.tfstate.backup
 backend/terraform.tfstatecopy
 !backend/backend.*.hcl.example
 
 # Lambda build artifacts
 lambdas/dist/
-plugins/seat-selection/backend/dist/
 **/__pycache__/
 **/*.pyc
 **/*.pyo
@@ -37,3 +39,5 @@ secrets.json
 .claude/settings.json
 .claude/settings.json
 backend/.terraform.lock.hcl
+!.env.example
+!frontend/.env.example

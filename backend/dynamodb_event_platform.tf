@@ -1,8 +1,7 @@
-# ── Event platform (v2) tables ───────────────────────────────────────────────
-# Additive tables for admin-designed events, per-event ticket types, versioned
-# registration form schemas, registrations with answers, atomic capacity
-# counters and an admin audit log. The legacy `events` / `registrations` tables
-# (and the Onam flow built on them) are untouched.
+# ── Event platform tables ────────────────────────────────────────────────────
+# Events, per-event ticket types, versioned registration form schemas,
+# registrations with answers, atomic capacity counters (event, ticket and
+# add-on units) and an admin audit log.
 
 resource "aws_dynamodb_table" "events_v2" {
   name         = "${local.name_prefix}-events-v2-${local.suffix}"

@@ -1,12 +1,12 @@
 # ── Event platform: admin API ────────────────────────────────────────────────
 # One Lambda behind a greedy proxy route, /admin/event-platform/{proxy+}. The
 # Cognito authorizer proves the caller is a pool user; the Lambda then checks
-# the Admins / EventManagers group. Legacy /admin/* routes are untouched.
+# the Admins / EventManagers group.
 
 resource "aws_cognito_user_group" "event_managers" {
   name         = "EventManagers"
   user_pool_id = aws_cognito_user_pool.admin.id
-  description  = "Can manage events, forms and registrations (not members or site settings)"
+  description  = "Can manage events, forms and registrations (not payment settings)"
 }
 
 resource "aws_cloudwatch_log_group" "manage_event_platform" {
@@ -33,7 +33,7 @@ data "archive_file" "manage_event_platform" {
     filename = "admin_roles.py"
   }
 
-  # event_model, form_engine, pricing, registrations logic/store, mailer, members (shared with the public Lambda)
+  # event_model, form_engine, pricing, registrations logic/store, mailer, add-ons (shared with the public Lambda)
   dynamic "source" {
     for_each = local.event_platform_shared_sources
     content {
@@ -52,13 +52,9 @@ data "archive_file" "manage_event_platform" {
     filename = "event_registration_admin.py"
   }
 
-  source {
-    content  = file("${path.module}/../lambdas/membership/npo_membership.py")
-    filename = "npo_membership.py"
-  }
 
   source {
-    content  = file("${path.module}/../plugins/seat-upgrade/backend/lambdas/square.py")
+    content  = file("${path.module}/../lambdas/square.py")
     filename = "square.py"
   }
 }

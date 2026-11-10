@@ -6,6 +6,7 @@ never amounts. All money is whole JPY, all times are timezone-aware.
 
 from typing import Optional
 
+import event_capabilities
 import event_model
 
 MAX_TICKETS_PER_REGISTRATION = 50
@@ -39,46 +40,27 @@ def is_listed(event: dict) -> bool:
     return event.get("status") in ("published", "closed")
 
 
-def access_decision(event: dict, member: Optional[dict]) -> dict:
-    """May this visitor register? member is None for guests, else the resolved membership context.
+def access_decision(event: dict, logged_in: bool) -> dict:
+    """May this visitor register? `logged_in` is False for guests.
 
-    Returns {"allowed": bool, "reason": str, "renewUrl": bool}. Reasons: ok, login_required,
-    members_only, renewal_required.
+    Returns {"allowed": bool, "reason": str}. Reasons: ok, login_required (guest checkout is off for this event).
     """
-    access = event.get("access") or {}
-    logged_in = bool(member and member.get("loggedIn"))
-    if access.get("membersOnly"):
-        if not logged_in:
-            return {"allowed": False, "reason": "login_required", "renewUrl": False}
-        summary = member.get("summary") or {}
-        if not summary.get("validNow"):
-            return {"allowed": False, "reason": "members_only", "renewUrl": True}
-        if access.get("requireRenewalCover", True) and not summary.get("coversRenewal"):
-            return {"allowed": False, "reason": "renewal_required", "renewUrl": True}
-        return {"allowed": True, "reason": "ok", "renewUrl": False}
-    if not logged_in and not access.get("guestsAllowed", True):
-        return {"allowed": False, "reason": "login_required", "renewUrl": False}
-    return {"allowed": True, "reason": "ok", "renewUrl": False}
+    if not logged_in and not event_capabilities.guest_checkout_enabled(event):
+        return {"allowed": False, "reason": "login_required"}
+    return {"allowed": True, "reason": "ok"}
 
 
-def is_member_price_eligible(member: Optional[dict]) -> bool:
-    """Member pricing needs an NPO membership that is valid now (same rule as the legacy flow)."""
-    return bool(member and member.get("loggedIn") and (member.get("summary") or {}).get("validNow"))
-
-
-def unit_price(ticket: dict, member_eligible: bool, now) -> tuple:
-    """(price_jpy, early_bird_applied). Early-bird pricing is for NPO members only."""
-    if not member_eligible:
-        return int(ticket["nonMemberPriceJpy"]), False
-    price = int(ticket["memberPriceJpy"])
-    early = ticket.get("earlyBirdMemberPriceJpy")
+def unit_price(ticket: dict, now) -> tuple:
+    """(price_jpy, early_bird_applied). The early-bird price, when set, applies to everyone until its cutoff."""
+    price = int(ticket["priceJpy"])
+    early = ticket.get("earlyBirdPriceJpy")
     cutoff = event_model.parse_iso(ticket.get("earlyBirdCutoff"))
     if early is not None and cutoff and now < cutoff and int(early) < price:
         return int(early), True
     return price, False
 
 
-def quote(tickets: list, selection, member_eligible: bool, now) -> tuple:
+def quote(tickets: list, selection, now) -> tuple:
     """Price a ticket selection {ticketTypeId: quantity}.
 
     Returns (lines, total_jpy, errors). `errors` maps "tickets" or a ticketTypeId to a message.
@@ -102,7 +84,7 @@ def quote(tickets: list, selection, member_eligible: bool, now) -> tuple:
         if cap is not None and qty > int(cap):
             errors[ticket_id] = f"You can book at most {int(cap)} of this ticket"
             continue
-        price, early = unit_price(ticket, member_eligible, now)
+        price, early = unit_price(ticket, now)
         total_qty += qty
         lines.append({"ticketTypeId": ticket_id, "name": ticket["name"], "qty": qty, "unitJpy": price,
                       "subtotalJpy": price * qty, "earlyBird": early})

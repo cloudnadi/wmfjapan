@@ -1,5 +1,5 @@
 """
-Lambda: /public/{proxy+}  — public event pages, registration, and member self-service.
+Lambda: /public/{proxy+}  — public event pages, registration, and attendee self-service.
 
 Public (no sign-in; guests allowed where the event allows it):
   GET  /events?filter=upcoming|past|all&category=        listed events
@@ -10,7 +10,7 @@ Public (no sign-in; guests allowed where the event allows it):
   GET  /registrations/{id}?token=                        the registrant's own registration (check-in token)
   POST /registrations/{id}/pay?token=                    (re)start payment
 
-Signed-in member (Authorization: registrant token from the OTP login):
+Signed-in account (Authorization: a Cognito attendee-pool ID token):
   GET    /my/registrations
   GET    /my/registrations/{id}
   PUT    /my/registrations/{id}       edit answers (until registration closes)
@@ -29,13 +29,14 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
+import cognito_jwt
+import event_addons
+import event_capabilities
 import event_mailer
-import event_members
 import event_model
 import event_pricing
 import event_registrations as logic
 import event_reg_store as store
-import npo_membership
 
 try:
     import square
@@ -48,11 +49,13 @@ from botocore.exceptions import ClientError
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
 
-TOKEN_SECRET = os.environ.get("OTP_TOKEN_SECRET", "")
-RENEWAL_YEAR = os.environ.get("RENEWAL_MEMBERSHIP_YEAR", "2026-27")
-MEMBERSHIP_AS_OF = os.environ.get("MEMBERSHIP_AS_OF", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "").rstrip("/")
 UPLOADS_BUCKET = os.environ.get("ASSETS_BUCKET", "")
+# Attendee accounts live in their own Cognito user pool (never the admin pool: the admin API
+# treats every user of its pool as an administrator).
+ATTENDEE_POOL_ID = os.environ.get("ATTENDEE_USER_POOL_ID", "")
+ATTENDEE_CLIENT_ID = os.environ.get("ATTENDEE_APP_CLIENT_ID", "")
+ATTENDEE_REGION = os.environ.get("ATTENDEE_COGNITO_REGION") or os.environ.get("REGION", "ap-northeast-1")
 
 UPLOAD_TYPES = {"application/pdf": b"%PDF-", "image/jpeg": b"\xff\xd8\xff", "image/png": b"\x89PNG\r\n\x1a\n",
                 "image/webp": b"RIFF"}
@@ -63,6 +66,7 @@ LIMITS = {"register-ip": (10, 600), "register-email": (5, 3600), "upload-ip": (2
           "pay-ip": (20, 600), "lookup-ip": (60, 60)}
 
 _s3 = None
+_verifier = None
 
 
 class ApiError(Exception):
@@ -109,50 +113,49 @@ def parse_body(event):
 
 # ── identity ──────────────────────────────────────────────────────────────────
 
-def _b64url_decode(value):
-    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+def verifier() -> "cognito_jwt.CognitoVerifier":
+    global _verifier
+    if _verifier is None:
+        _verifier = cognito_jwt.CognitoVerifier(ATTENDEE_REGION, ATTENDEE_POOL_ID, ATTENDEE_CLIENT_ID)
+    return _verifier
 
 
-def verify_token(token: str) -> Optional[dict]:
-    """The OTP login token (same format as auth_otp / my_registrations)."""
+def _identity_from_token(token: str, strict: bool) -> Optional[dict]:
+    """{email, sub, name} for a valid Cognito ID token with a verified e-mail; None when it is not valid."""
     try:
-        payload_part, sig_part = token.split(".", 1)
-        payload_b = _b64url_decode(payload_part)
-        expected = hmac.new(TOKEN_SECRET.encode(), payload_b, hashlib.sha256).digest()
-        if not TOKEN_SECRET or not hmac.compare_digest(expected, _b64url_decode(sig_part)):
-            return None
-        payload = json.loads(payload_b)
-        return payload if int(payload.get("exp", 0)) >= int(time.time()) else None
-    except Exception:
+        claims = verifier().verify_id_token(token)
+    except cognito_jwt.TokenError as exc:
+        logger.info("rejected attendee token: %s", exc.code)          # reason code only, never the token
         return None
+    identity = cognito_jwt.identity_from_claims(claims)
+    if identity is None and strict:
+        raise ApiError(401, "Please verify your email address before registering.", code="email_unverified")
+    return identity
 
 
-def resolve_member(event, *, strict: bool) -> Optional[dict]:
-    """The signed-in member with their membership summary, or None for guests.
+def resolve_account(event, *, strict: bool) -> Optional[dict]:
+    """The signed-in attendee ({email, sub, name}), or None for guests.
 
     A token that is present but invalid is an error when `strict` (so nobody is silently registered
-    as a guest at non-member prices because their session expired); otherwise it is ignored.
+    as a guest because their session expired); otherwise it is ignored.
     """
     headers = {str(k).lower(): v for k, v in (event.get("headers") or {}).items()}
     token = headers.get("authorization", "").strip()
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
     if not token:
         return None
-    payload = verify_token(token)
-    email = str((payload or {}).get("email", "")).strip().lower()
-    if not email:
-        if strict:
-            raise ApiError(401, "Your session has expired. Please sign in again.", code="session_expired")
-        return None
-    member = event_members.membership_for_email(store, email, as_of=MEMBERSHIP_AS_OF, renewal_year=RENEWAL_YEAR)
-    member.pop("known", None)
-    return member
+    identity = _identity_from_token(token, strict)
+    if not identity and strict:
+        raise ApiError(401, "Your session has expired. Please sign in again.", code="session_expired")
+    return identity
 
 
-def require_member(event) -> dict:
-    member = resolve_member(event, strict=True)
-    if not member:
+def require_account(event) -> dict:
+    account = resolve_account(event, strict=True)
+    if not account:
         raise ApiError(401, "Please sign in", code="login_required")
-    return member
+    return account
 
 
 def client_ip(event) -> str:
@@ -209,33 +212,24 @@ def listing_view(event: dict) -> dict:
     base.update({"shortDescription": event.get("shortDescription", ""), "category": event.get("category", ""),
                  "tags": event.get("tags", []), "coverImage": (event.get("design") or {}).get("coverImage", ""),
                  "accentColor": (event.get("design") or {}).get("accentColor", ""),
-                 "membersOnly": bool((event.get("access") or {}).get("membersOnly")),
-                 "guestsAllowed": bool((event.get("access") or {}).get("guestsAllowed", True)) and not (event.get("access") or {}).get("membersOnly"),
-                 "legacyPath": event.get("registrationPath") if event.get("source") == "legacy" else None})
+                 "guestsAllowed": event_capabilities.guest_checkout_enabled(event),
+                 "capabilities": event_capabilities.normalize(event)})
     return base
 
 
-def viewer_system(member) -> dict:
-    """Read-only membership values shown in the form (the server fills the real ones at registration)."""
-    ctx = logic.member_context(member)
-    return {"membershipId": ctx.get("memberId", ""), "membershipStatus": ctx.get("membershipStatus", "none"),
-            "membershipType": ctx.get("membershipType", ""), "membershipExpiry": ctx.get("membershipExpiry", "")}
-
-
-def event_page(event, tickets, form, counters, member, when) -> dict:
-    eligible = event_pricing.is_member_price_eligible(member)
+def event_page(event, tickets, form, counters, account, when) -> dict:
     availability = event_pricing.availability(event, tickets, counters)
-    decision = event_pricing.access_decision(event, member)
+    decision = event_pricing.access_decision(event, bool(account))
     window = event_pricing.registration_window(event, when)
     shown = []
     for t in tickets:
         if t.get("active") is False:
             continue
-        price, early = event_pricing.unit_price(t, eligible, when)
+        price, early = event_pricing.unit_price(t, when)
         cutoff = event_model.parse_iso(t.get("earlyBirdCutoff"))
-        shown.append({k: t.get(k) for k in ("ticketTypeId", "name", "description", "memberPriceJpy", "nonMemberPriceJpy",
-                                            "earlyBirdMemberPriceJpy", "earlyBirdCutoff", "perPersonCap")} | {
-            "earlyBirdOpen": bool(t.get("earlyBirdMemberPriceJpy") is not None and cutoff and when < cutoff),
+        shown.append({k: t.get(k) for k in ("ticketTypeId", "name", "description", "priceJpy", "earlyBirdPriceJpy",
+                                            "earlyBirdCutoff", "perPersonCap")} | {
+            "earlyBirdOpen": bool(t.get("earlyBirdPriceJpy") is not None and cutoff and when < cutoff),
             "yourPriceJpy": price, "yourPriceIsEarlyBird": early,
             "remaining": availability["tickets"].get(t["ticketTypeId"])})
     page = listing_view(event)
@@ -245,10 +239,9 @@ def event_page(event, tickets, form, counters, member, when) -> dict:
         "registrationOpensAt": event.get("registrationOpensAt"), "tickets": shown,
         "availability": {"full": availability["full"], "eventRemaining": availability["eventRemaining"]},
         "registration": {"window": window, "allowed": decision["allowed"], "reason": decision["reason"],
-                         "renewUrl": decision["renewUrl"],
                          "waitlist": bool(availability["full"] and event.get("waitlistEnabled"))},
-        "viewer": {"loggedIn": bool(member), "email": (member or {}).get("email", ""), "name": (member or {}).get("name", ""),
-                   "memberPricing": eligible, "system": viewer_system(member)},
+        "viewer": {"loggedIn": bool(account), "email": (account or {}).get("email", ""), "name": (account or {}).get("name", "")},
+        "addons": event_addons.public_view(event, counters),
         "paymentMethods": [{"key": m["key"], "label": m["label"]} for m in payment_methods().values()],
         "form": {"formId": form["formId"], "version": form["version"], "fields": event_model.ensure_core_fields(form["fields"])} if form else None,
     })
@@ -298,13 +291,12 @@ def list_events(query):
 
 def get_event(slug, event):
     item = load_public_event(slug)
-    member = resolve_member(event, strict=False)
-    if item.get("source") == "legacy":
-        return 200, {"event": listing_view(item), "legacy": True}
+    account = resolve_account(event, strict=False)
     tickets = store.get_tickets(item["eventId"])
     form = store.latest_form(item["formId"]) if item.get("formId") else None
     keys = [f"EVENT#{item['eventId']}"] + [f"TICKET#{item['eventId']}#{t['ticketTypeId']}" for t in tickets]
-    page = event_page(item, tickets, form, store.get_counters(keys), member, now())
+    keys += event_addons.counter_keys(item)
+    page = event_page(item, tickets, form, store.get_counters(keys), account, now())
     return 200, {"event": page}
 
 
@@ -312,12 +304,16 @@ def quote(slug, event):
     throttle("quote-ip", client_ip(event))
     item = load_public_event(slug)
     body = parse_body(event)
-    member = resolve_member(event, strict=False)
-    lines, total, errors = event_pricing.quote(store.get_tickets(item["eventId"]), body.get("tickets"),
-                                               event_pricing.is_member_price_eligible(member), now())
+    lines, total, errors = event_pricing.quote(store.get_tickets(item["eventId"]), body.get("tickets"), now())
     if errors:
         raise ApiError(400, "Please check your tickets", errors)
-    return 200, {"lines": lines, "totalJpy": total}
+    unavailable = event_capabilities.reject_unavailable_addons(item, body)
+    if unavailable:
+        raise ApiError(400, "Some options are not available for this event", unavailable, code="feature_disabled")
+    _, addon_jpy, _, addon_errors = event_addons.resolve(item, body, sum(l["qty"] for l in lines))
+    if addon_errors:
+        raise ApiError(400, "Please check your add-ons", addon_errors, code="addons_invalid")
+    return 200, {"lines": lines, "ticketsJpy": total, "addonJpy": addon_jpy, "totalJpy": total + addon_jpy}
 
 
 def _walk_files(fields, answers, found, prefix=""):
@@ -407,20 +403,17 @@ def register(slug, event):
     ip = client_ip(event)
     throttle("register-ip", ip)
     item = load_public_event(slug)
-    if item.get("source") == "legacy":
-        raise ApiError(409, "Please register through the event's own page", code="legacy",
-                       fields={"path": item.get("registrationPath") or ""})
     body = parse_body(event)
-    member = resolve_member(event, strict=True)
+    account = resolve_account(event, strict=True)
     email = str(((body.get("answers") or {}).get("email") if isinstance(body.get("answers"), dict) else "") or "").strip().lower()
-    throttle("register-email", (member or {}).get("email") or email or ip)
+    throttle("register-email", (account or {}).get("email") or email or ip)
     tickets = store.get_tickets(item["eventId"])
     form = store.latest_form(item.get("formId", ""))
     if not form:
         raise ApiError(409, "This event is not ready for registration")
     verify_uploads(item, form, body.get("answers"))
     methods = payment_methods()
-    reg, created = logic.register(event=item, tickets=tickets, form=form, body=body, member=member, methods=methods,
+    reg, created = logic.register(event=item, tickets=tickets, form=form, body=body, account=account, methods=methods,
                                   now=now(), redirect_base=FRONTEND_URL)
     return (201 if created else 200), registrant_view(reg, item, methods)
 
@@ -428,7 +421,7 @@ def register(slug, event):
 def _load_by_token(reg_id, event):
     reg = store.get_registration(reg_id)
     token = (event.get("queryStringParameters") or {}).get("token", "")
-    if not reg or reg.get("source") != "native" or not token or not hmac.compare_digest(reg["checkInToken"], token):
+    if not reg or not token or not hmac.compare_digest(reg["checkInToken"], token):
         raise ApiError(404, "Registration not found")
     return reg
 
@@ -468,10 +461,10 @@ def pay(reg_id, event):
 
 
 def my_list(event):
-    member = require_member(event)
+    account = require_account(event)
     rows = []
     cache = {}
-    for reg in sorted(store.list_for_member(member["email"]), key=lambda r: r.get("createdAt", ""), reverse=True):
+    for reg in sorted(store.list_for_account(account["email"]), key=lambda r: r.get("createdAt", ""), reverse=True):
         item = cache.setdefault(reg["eventId"], store.get_event(reg["eventId"]))
         view = registrant_view(reg, item, {})
         view["canChange"] = _can_change(reg, item)
@@ -484,16 +477,16 @@ def _can_change(reg, item):
                 and event_pricing.registration_window(item, now()) == event_pricing.WINDOW_OPEN)
 
 
-def _my_registration(reg_id, member):
+def _my_registration(reg_id, account):
     reg = store.get_registration(reg_id)
-    if not reg or reg.get("memberEmail") != member["email"]:
+    if not reg or reg.get("accountEmail") != account["email"]:
         raise ApiError(404, "Registration not found")
     return reg, store.get_event(reg["eventId"])
 
 
 def my_get(reg_id, event):
-    member = require_member(event)
-    reg, item = _my_registration(reg_id, member)
+    account = require_account(event)
+    reg, item = _my_registration(reg_id, account)
     methods = payment_methods()
     view = registrant_view(reg, item, methods)
     view["canChange"] = _can_change(reg, item)
@@ -503,21 +496,21 @@ def my_get(reg_id, event):
 
 
 def my_edit(reg_id, event):
-    member = require_member(event)
-    reg, item = _my_registration(reg_id, member)
+    account = require_account(event)
+    reg, item = _my_registration(reg_id, account)
     body = parse_body(event)
     version = store.get_form_version(reg["formId"], int(reg["formVersion"]))
     if not version:
         raise ApiError(409, "The form this registration used is no longer available")
     verify_uploads(item, version, body.get("answers"))
-    updated = logic.member_edit(reg, item, version, body.get("answers"), member, now())
+    updated = logic.account_edit(reg, item, version, body.get("answers"), account, now())
     return 200, registrant_view(updated, item, payment_methods())
 
 
 def my_cancel(reg_id, event):
-    member = require_member(event)
-    reg, item = _my_registration(reg_id, member)
-    updated = logic.member_cancel(reg, item, member, now())
+    account = require_account(event)
+    reg, item = _my_registration(reg_id, account)
+    updated = logic.account_cancel(reg, item, account, now())
     return 200, registrant_view(updated, item, payment_methods())
 
 

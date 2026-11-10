@@ -20,7 +20,7 @@ class FakeStore:
     def __init__(self):
         self.lock = threading.Lock()
         self.events, self.tickets, self.forms, self.regs = {}, {}, {}, {}
-        self.counters, self.members, self.txns, self.config, self.rl = {}, {}, {}, {}, {}
+        self.counters, self.config, self.rl = {}, {}, {}
         self.calls = []
 
     # catalogue
@@ -35,24 +35,23 @@ class FakeStore:
     def get_counters(self, keys):
         self.calls.append("get_counters")
         return {k: self.counters[k] for k in keys if k in self.counters}
-    def get_member(self, email): return self.members.get(email)
-    def get_membership_transactions(self, memberid): return self.txns.get(memberid, [])
     def get_site_config(self, key): return self.config.get(key, {})
+    def put_site_config(self, key, value): self.config[key] = value
 
     # registrations
     def get_registration(self, rid): return copy.deepcopy(self.regs.get(rid))
     def find_by_provider_id(self, pid): return next((copy.deepcopy(r) for r in self.regs.values() if r.get("providerPaymentId") == pid), None)
     def list_for_event(self, eid): return [copy.deepcopy(r) for r in self.regs.values() if r["eventId"] == eid]
-    def list_by_email(self, email): return [copy.deepcopy(r) for r in self.regs.values() if r.get("email") == email and r.get("source") == "native"]
-    def list_for_member(self, email):
-        return [copy.deepcopy(r) for r in self.regs.values() if r.get("memberEmail") == email and r.get("source") == "native"]
+    def list_by_email(self, email): return [copy.deepcopy(r) for r in self.regs.values() if r.get("email") == email]
+    def list_for_account(self, email):
+        return [copy.deepcopy(r) for r in self.regs.values() if r.get("accountEmail") == email]
     def list_expired_holds(self, iso_now):
         return [copy.deepcopy(r) for r in self.regs.values() if r["status"] == "pending_payment" and r.get("holdUntil", "9") <= iso_now]
 
     def _fits(self, ops):
         for key, n, limit in ops:
             if limit is not None and (n > limit or self.counters.get(key, 0) + n > limit):
-                raise logic.CapacityFull("event" if key.startswith("EVENT#") else "ticket", key)
+                raise logic.CapacityFull(logic.counter_scope(key), key)
 
     def _apply(self, ops):
         for key, n, _ in ops:
@@ -118,9 +117,9 @@ class FakeStore:
 
     # test helpers
     def add_event(self, **over):
-        event = {"eventId": "e1", "slug": "picnic", "title": "Picnic", "status": "published", "source": "native",
+        event = {"eventId": "e1", "slug": "picnic", "title": "Picnic", "status": "published",
                  "startsAt": "2026-10-10T10:00:00+09:00", "endsAt": "2026-10-10T16:00:00+09:00",
-                 "access": {"guestsAllowed": True, "membersOnly": False, "requireRenewalCover": True},
+                 "access": {"guestsAllowed": True},
                  "formId": "f1", "revision": 1, **over}
         self.events[event["eventId"]] = event
         form = event_model.new_form_version("f1", None, event_model.default_form_fields(), event_id=event["eventId"])
@@ -154,14 +153,10 @@ class FakePayments:
         return real_square.parse_webhook_event(raw)
 
 
-ADULT = {"ticketTypeId": "adult", "eventId": "e1", "name": "Adult", "memberPriceJpy": 1000, "nonMemberPriceJpy": 1500,
-         "sortOrder": 0, "active": True}
-FREE = {"ticketTypeId": "free", "eventId": "e1", "name": "Child", "memberPriceJpy": 0, "nonMemberPriceJpy": 0,
-        "sortOrder": 1, "active": True}
-ACTIVE_MEMBER = {"loggedIn": True, "email": "m@example.com", "memberId": "M1",
-                 "summary": {"validNow": True, "coversRenewal": True, "latestTo": "2027-03-31"}}
-EXPIRED_MEMBER = {"loggedIn": True, "email": "x@example.com", "memberId": "M2",
-                  "summary": {"validNow": False, "coversRenewal": False, "latestTo": "2025-03-31"}}
+ADULT = {"ticketTypeId": "adult", "eventId": "e1", "name": "Adult", "priceJpy": 1500, "sortOrder": 0, "active": True}
+FREE = {"ticketTypeId": "free", "eventId": "e1", "name": "Child", "priceJpy": 0, "sortOrder": 1, "active": True}
+ACCOUNT = {"email": "m@example.com", "sub": "sub-1", "name": "Mia"}
+OTHER_ACCOUNT = {"email": "x@example.com", "sub": "sub-2", "name": ""}
 ANSWERS = {"fullName": "Ann Lee", "email": "ann@example.com", "phone": "+81 90-1234-5678",
            "consentPrivacy": True, "consentTerms": True}
 

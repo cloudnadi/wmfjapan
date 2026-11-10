@@ -1,8 +1,7 @@
+import { siteConfig } from "./siteConfig";
 import Navbar from "./Navbar";
 
 const HOME_PATH = "/";
-const SEAT_SELECTION_GUIDE_PATH = "/seat-selection-guide";
-const ZONE_UPGRADE_GUIDE_PATH = "/zone-upgrade-guide";
 
 /**
  * Shared layout for the static legal/policy pages (terms, privacy,
@@ -286,7 +285,7 @@ export function PrivacyPolicy({ navigateTo }) {
       </p>
       <p>
         This Privacy Policy applies to our website,{" "}
-        <a href="https://www.wmfjapan.com">https://www.wmfjapan.com</a>, and its associated
+        <a href={siteConfig.orgUrl}>{siteConfig.orgUrl}</a>, and its associated
         subdomains. By accessing or using our Service, you signify that you have read, understood,
         and agree to our collection, storage, use, and disclosure of your personal information as
         described in this Privacy Policy and our Terms of Service.
@@ -304,7 +303,7 @@ export function PrivacyPolicy({ navigateTo }) {
         </p>
         <p>
           <strong>Website:</strong> WMF Japan's site, which can be accessed via this URL:{" "}
-          <a href="https://www.wmfjapan.com">https://www.wmfjapan.com</a>
+          <a href={siteConfig.orgUrl}>{siteConfig.orgUrl}</a>
         </p>
         <p>
           <strong>You:</strong> a person or entity that is registered with WMF Japan to use the
@@ -449,12 +448,12 @@ export function PrivacyPolicy({ navigateTo }) {
         <p>Don't hesitate to contact us if you have any questions.</p>
         <p>
           Via Email:{" "}
-          <a href="mailto:info@wmfjapan.com">info@wmfjapan.com</a>
+          <a href={`mailto:${siteConfig.contactEmail}`}>{siteConfig.contactEmail}</a>
         </p>
         <p>
           Via this Link:{" "}
-          <a href="https://www.wmfjapan.com/en/home/contact">
-            https://www.wmfjapan.com/en/home/contact
+          <a href={`${siteConfig.orgUrl.replace(/\/+$/, "")}/en/home/contact`}>
+            {`${siteConfig.orgUrl.replace(/\/+$/, "")}/en/home/contact`}
           </a>
         </p>
       </section>
@@ -466,49 +465,10 @@ export function CancellationPolicy({ navigateTo }) {
   return (
     <StaticPageLayout navigateTo={navigateTo} title="Cancellation Policy" updated="October 2026">
       <section>
-        <h2>Onam-only and 40th Anniversary-only Tickets</h2>
+        <h2>Event Tickets</h2>
         <p>
-          Tickets may be cancelled up to <strong>one week before the respective event date</strong>.
-          The amount paid will be refunded after deducting any applicable transaction or payment
-          processing charges.
-        </p>
-      </section>
-      <section>
-        <h2>Combo Tickets — Onam + 40th Anniversary</h2>
-        <p>
-          Combo tickets may also be cancelled up to <strong>one week before the respective event
-          date</strong>.
-        </p>
-        <p>
-          If a participant wishes to cancel <strong>only one of the two events</strong> included in
-          a Combo ticket, the Combo discount will no longer apply. The refund will therefore be
-          recalculated based on the applicable <strong>individual event ticket price</strong> for
-          the event being retained, and any applicable transaction or payment processing charges
-          will be deducted.
-        </p>
-      </section>
-      <section>
-        <h2>NPO Membership</h2>
-        <p>
-          An NPO membership may be cancelled <strong>within 3 days of the payment date</strong>. A
-          cancellation request received within this period will be accepted and the membership fee
-          will be <strong>refunded</strong>. This applies to a spouse membership paid in the same
-          order as well.
-        </p>
-        <p>
-          Cancellation requests received <strong>more than 3 days after payment</strong> are not
-          eligible for a refund, and the membership remains valid until the end of its membership
-          year (31 October).
-        </p>
-        <p>
-          To cancel, write to{" "}
-          <a href="mailto:info@wmfjapan.com">info@wmfjapan.com</a> from the email address
-          registered with your membership, quoting your payment date. Once a membership is
-          cancelled it ends, and the committee may review any AGM registration that relied on it.
-        </p>
-        <p>
-          A membership request that has not yet been paid can simply be left unpaid — no charge is
-          made and no cancellation is needed.
+          For cancellations and refunds of event tickets, please contact us. Please quote your registration ID and
+          the email address used to register.
         </p>
       </section>
       <section>
@@ -516,10 +476,6 @@ export function CancellationPolicy({ navigateTo }) {
         <p>
           Cancellation requests received <strong>after the applicable cancellation deadline</strong>{" "}
           will not be eligible for a refund.
-        </p>
-        <p>
-          Please note that the cancellation deadline is calculated separately based on the date of
-          each respective event.
         </p>
       </section>
     </StaticPageLayout>

@@ -1,4 +1,8 @@
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /my/
+Disallow: /auth/
+Disallow: /signin
 
-Sitemap: https://wmfjapan.cloudnadi.com/sitemap.xml
+Sitemap: https://wmfevents.cloudnadi.com/sitemap.xml

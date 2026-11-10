@@ -10,7 +10,7 @@ import { t } from "./i18n";
  *   answers  { [key]: value }
  *   onChange (key, value) => void
  *   errors   { [pathOrKey]: message }, e.g. "diet" or "guests[0].name"
- *   system   values for read-only system fields, e.g. { membershipStatus: "active" }
+ *   system   values for read-only system fields, (none are defined by default)
  */
 export default function DynamicForm({ fields, answers, onChange, errors = {}, system = {}, idPrefix = "df", outer = {}, errorPrefix = "", uploadFile, readOnlyKeys = [] }) {
   return (

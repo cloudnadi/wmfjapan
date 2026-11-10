@@ -15,14 +15,13 @@ except ImportError:  # pragma: no cover
     mock_aws = None
 
 ROOT = Path(__file__).resolve().parents[1]
-for sub in ("lambdas", "lambdas/manage_event_platform", "lambdas/membership", "plugins/seat-upgrade/backend/lambdas", "tests"):
+for sub in ("lambdas", "lambdas/manage_event_platform", "tests"):
     sys.path.insert(0, str(ROOT / sub))
 
 ENV = {"REGION": "ap-northeast-1", "AWS_DEFAULT_REGION": "ap-northeast-1", "AWS_ACCESS_KEY_ID": "x", "AWS_SECRET_ACCESS_KEY": "x",
        "EVENTS_V2_TABLE": "events", "EVENT_TICKET_TYPES_TABLE": "tickets", "FORM_SCHEMAS_TABLE": "forms",
        "EVENT_REGISTRATIONS_TABLE": "regs", "EVENT_COUNTERS_TABLE": "counters", "AUDIT_LOG_TABLE": "audit",
-       "MEMBERS_TABLE": "members", "MEMBERSHIP_TABLE": "npo", "SITE_CONFIG_TABLE": "siteconfig",
-       "OTP_TOKEN_SECRET": "s", "MEMBERSHIP_AS_OF": "2026-09-01"}
+       "SITE_CONFIG_TABLE": "siteconfig", "ATTENDEE_USER_POOL_ID": "ap-northeast-1_TESTPOOL", "ATTENDEE_APP_CLIENT_ID": "test-client-id"}
 
 
 def gsi(name, hash_key, range_key=None):
@@ -46,8 +45,6 @@ def create_tables(db):
                                           gsi("StatusHoldIndex", "status", "holdUntil")])
     table("counters", "counterKey")
     table("audit", "entityKey", "sortKey")
-    table("members", "email")
-    table("npo", "memberid", "transactionNo")
     table("siteconfig", "configKey")
 
 
@@ -116,7 +113,7 @@ class EndToEnd(unittest.TestCase):
                                                  "endsAt": "2026-12-10T16:00:00+09:00", "capacity": 10, "waitlistEnabled": True})
         self.assertEqual(status, 201, body)
         self.eid = body["event"]["eventId"]
-        status, body = self.a("POST", f"events/{self.eid}/tickets", {"name": "Adult", "memberPriceJpy": 1000, "nonMemberPriceJpy": 1500})
+        status, body = self.a("POST", f"events/{self.eid}/tickets", {"name": "Adult", "priceJpy": 1500})
         self.assertEqual(status, 201, body)
         self.adult = body["ticket"]["ticketTypeId"]
         status, body = self.a("POST", f"events/{self.eid}/status", {"status": "published"})
@@ -250,7 +247,7 @@ class EndToEnd(unittest.TestCase):
         import boto3
         reg = boto3.resource("dynamodb", region_name="ap-northeast-1").Table("regs").get_item(
             Key={"registrationId": body["registration"]["registrationId"]})["Item"]
-        status, body = self.a("POST", f"events/{self.eid}/check-in", {"code": f"NKEV1.{reg['registrationId']}.{reg['checkInToken']}"})
+        status, body = self.a("POST", f"events/{self.eid}/check-in", {"code": f"WMFEV1.{reg['registrationId']}.{reg['checkInToken']}"})
         self.assertEqual((status, body["result"]), (200, "ok"), body)
 
     # ── Square webhook ────────────────────────────────────────────────────────
@@ -345,24 +342,64 @@ class EndToEnd(unittest.TestCase):
     def revision(self):
         return self.a("GET", f"events/{self.eid}")[1]["event"]["revision"]
 
-    def test_member_cancel_via_public_api(self):
+    def test_attendee_can_list_and_cancel_through_the_public_api(self):
+        import cognito_jwt
+        import jwt_fakes as jf
+        verifier = cognito_jwt.CognitoVerifier(jf.REGION, jf.POOL, jf.CLIENT, fetcher=lambda url: jf.jwks("kid-1"))
+        with mock.patch.object(self.public, "_verifier", verifier):
+            token = jf.mint({"email": "m@example.com", "sub": "sub-m"})
+            status, body = self.p("POST", "events/picnic/register", {"tickets": {self.adult: 1}, "paymentMethod": "bank",
+                                                                      "answers": {**ANSWERS, "email": "m@example.com"}, "idempotencyKey": "m1"}, token=token)
+            self.assertEqual(status, 201, body)
+            rid = body["registration"]["registrationId"]
+            status, body = self.p("GET", "my/registrations", token=token)
+            self.assertEqual((status, len(body["registrations"])), (200, 1))
+            status, body = self.p("DELETE", f"my/registrations/{rid}", token=token)
+            self.assertEqual(status, 200, body)
+            self.assertEqual(self.counter(), 0)
+
+    def configure_addons(self):
+        body = {"title": "Picnic", "slug": "picnic", "startsAt": "2026-12-10T10:00:00+09:00", "endsAt": "2026-12-10T16:00:00+09:00",
+                "capacity": 10, "waitlistEnabled": True, "revision": self.revision(),
+                "slots": [{"slotId": "am", "name": "Morning", "capacity": 3}],
+                "upgrades": [{"upgradeId": "vip", "name": "VIP", "priceJpy": 500, "limit": 1}],
+                "seatMap": {"sections": [{"sectionId": "main", "name": "Main", "rows": 1, "seatsPerRow": 4, "extraPriceJpy": 0}]},
+                "capabilities": {"entrySlots": {"enabled": True}, "zoneUpgrade": {"enabled": True}, "seatReservation": {"enabled": True}}}
+        status, resp = self.a("PUT", f"events/{self.eid}", body)
+        self.assertEqual(status, 200, resp)
+
+    def counter_value(self, key):
         import boto3
-        db = boto3.resource("dynamodb", region_name="ap-northeast-1")
-        db.Table("members").put_item(Item={"email": "m@example.com", "memberid": "M1", "npoMembershipActive": True, "fullname": "Mia"})
-        db.Table("npo").put_item(Item={"memberid": "M1", "transactionNo": "T1", "membDateFrom": "2025-11-01", "membDateTo": "2027-10-31"})
-        import base64, hashlib, hmac, time
-        payload = json.dumps({"email": "m@example.com", "exp": int(time.time()) + 600}).encode()
-        b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
-        token = f"{b64(payload)}.{b64(hmac.new(b's', payload, hashlib.sha256).digest())}"
-        status, body = self.p("POST", "events/picnic/register", {"tickets": {self.adult: 1}, "paymentMethod": "bank",
-                                                                  "answers": {**ANSWERS, "email": "m@example.com"}, "idempotencyKey": "m1"}, token=token)
-        self.assertEqual(status, 201, body)
-        rid = body["registration"]["registrationId"]
-        status, body = self.p("GET", "my/registrations", token=token)
-        self.assertEqual(status, 200, body)
-        status, body = self.p("DELETE", f"my/registrations/{rid}", token=token)
-        self.assertEqual(status, 200, body)
-        self.assertEqual(self.counter(), 0)
+        item = boto3.resource("dynamodb", region_name="ap-northeast-1").Table("counters").get_item(Key={"counterKey": key}).get("Item")
+        return int(item["sold"]) if item else 0
+
+    def test_addons_are_reserved_in_dynamodb_and_a_taken_seat_is_refused(self):
+        self.configure_addons()
+        results = []
+
+        def attempt(n):
+            results.append(self.p("POST", "events/picnic/register", {
+                "tickets": {self.adult: 1}, "paymentMethod": "bank", "answers": {**ANSWERS, "email": f"p{n}@example.com"},
+                "idempotencyKey": f"seat-{n}", "addons": {"entrySlots": {"slotId": "am"}, "seatReservation": {"seats": ["main-A1"]},
+                                                          "zoneUpgrade": {"vip": 1}}}))
+        for n in range(4):                       # (moto is not thread-safe; real concurrency is covered with the locking fake store)
+            attempt(n)
+        codes = sorted(r[0] for r in results)
+        self.assertEqual(codes, [201, 409, 409, 409], results)                    # one seat, one winner
+        self.assertEqual(self.counter_value(f"SEAT#{self.eid}#main-A1"), 1)
+        self.assertEqual(self.counter_value(f"SLOT#{self.eid}#am"), 1)             # the losers took nothing
+        self.assertEqual(self.counter_value(f"UPGRADE#{self.eid}#vip"), 1)
+        self.assertEqual(self.counter(), 1)
+        winner = next(r for r in results if r[0] == 201)[1]["registration"]
+        self.assertEqual(winner["totalJpy"], 2000)
+        status, _ = self.p("DELETE", f"my/registrations/{winner['registrationId']}")           # guests cannot self-cancel...
+        self.assertEqual(status, 401)
+        reg = self.reg_item(winner["registrationId"])
+        status, resp = self.a("POST", f"events/{self.eid}/registrations/{winner['registrationId']}/cancel", {"notify": False})
+        self.assertEqual(status, 200, resp)                                        # ...an organiser can, and everything is returned
+        self.assertEqual(self.counter_value(f"SEAT#{self.eid}#main-A1"), 0)
+        self.assertEqual(self.counter_value(f"SLOT#{self.eid}#am"), 0)
+        self.assertEqual(self.counter_value(f"UPGRADE#{self.eid}#vip"), 0)
 
 
 if __name__ == "__main__":

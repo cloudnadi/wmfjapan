@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import EventShell, { ErrorBox, Loading } from "./EventShell";
 import { getPublicEvent } from "./eventsApi";
+import { ADDON_KEYS, getEventState, normalizeEvent } from "./eventModel";
 import { formatJpy, formatJst, t } from "./i18n";
+import { siteConfig } from "./siteConfig";
 
 const SECTION_KEYS = ["agenda", "speakers", "sponsors", "faq", "contact"];
 
@@ -16,34 +18,53 @@ function Icon({ name }) {
 }
 
 function guestBadge(ev) {
-  if (ev.access?.membersOnly) return <span className="pe-pill pe-pill-accent">{t("pub.membersOnly")}</span>;
-  if (ev.access?.guestsAllowed === false) return <span className="pe-pill pe-pill-accent">{t("pub.signInRequiredBadge")}</span>;
+  if (!ev.capabilities.guestCheckout.enabled) return <span className="pe-pill pe-pill-accent">{t("pub.signInRequiredBadge")}</span>;
   return <span className="pe-pill">{t("pub.guestsWelcome")}</span>;
 }
 
-function RegistrationBox({ ev, navigateTo }) {
+/** What the event offers beyond tickets, from its capabilities and live availability. Disabled add-ons are not rendered at all. */
+function AddonList({ ev }) {
+  const enabled = ADDON_KEYS.filter((key) => ev.capabilities[key].enabled);
+  if (enabled.length === 0) return null;
+  const info = ev.addons || {};
+  const detail = {
+    entrySlots: () => (info.entrySlots?.slots || []).map((x) => (x.remaining === 0 ? `${x.name} (${t("pub.soldOut")})` : x.name)).join(" · "),
+    zoneUpgrade: () => (info.zoneUpgrade?.upgrades || []).map((x) => `${x.name} +${formatJpy(x.priceJpy)}`).join(" · "),
+    seatReservation: () => (info.seatReservation?.sections || []).map((x) => (x.extraPriceJpy ? `${x.name} +${formatJpy(x.extraPriceJpy)}` : x.name)).join(" · "),
+  };
+  return (
+    <section aria-labelledby="pe-addons-h" className="pe-section pe-addons">
+      <h2 id="pe-addons-h">{t("pub.addons.title")}</h2>
+      <ul>
+        {enabled.map((key) => (
+          <li key={key} data-addon={key}>
+            <strong>{t(`pub.addons.${key}`)}</strong>
+            {detail[key]?.() ? <small className="pe-meta"> — {detail[key]()}</small> : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+export function RegistrationBox({ ev, navigateTo }) {
   const r = ev.registration;
+  const state = getEventState(ev);
   const go = () => navigateTo(`/events/${ev.slug}/register`);
   let body;
-  if (r.window === "not_open") {
+  if (state === "cancelled") {
+    body = <p role="status">{t("pub.state.cancelled")}</p>;
+  } else if (state === "not_open") {
     body = <p>{t("pub.reg.opensAt", { when: ev.registrationOpensAt ? formatJst(ev.registrationOpensAt) : "" })}</p>;
-  } else if (r.window === "closed") {
-    body = <p>{t("pub.registrationClosed")}</p>;
-  } else if (!r.allowed && (r.reason === "members_only" || r.reason === "renewal_required")) {
+  } else if (state === "closed") {
+    body = <p role="status">{t("pub.registrationClosed")}</p>;
+  } else if (state === "sold_out") {
+    body = <p role="status">{t("pub.state.soldOut")}</p>;
+  } else if (state === "sign_in_required") {
     body = (
       <>
-        <p>{t(r.reason === "members_only" ? "pub.reg.membersOnlyBlocked" : "pub.reg.renewalBlocked")}</p>
-        <button type="button" className="button primary" onClick={() => navigateTo("/member/membership")}>{t("pub.reg.renewNow")}</button>
-      </>
-    );
-  } else if (!r.allowed) {
-    body = (
-      <>
-        <p>{t(ev.access.membersOnly ? "pub.reg.membersOnlySignIn" : "pub.reg.signInRequired")}</p>
+        <p>{t("pub.reg.signInRequired")}</p>
         <button type="button" className="button primary" onClick={go}>{t("pub.reg.signIn")}</button>
-        {ev.access.membersOnly && (
-          <button type="button" className="button secondary" onClick={() => navigateTo("/member/membership")}>{t("pub.reg.joinMembership")}</button>
-        )}
       </>
     );
   } else {
@@ -51,16 +72,13 @@ function RegistrationBox({ ev, navigateTo }) {
       <>
         {r.waitlist && <p>{t("pub.reg.full")}</p>}
         <button type="button" className="button primary" onClick={go}>{t(r.waitlist ? "pub.reg.joinWaitlist" : "pub.reg.register")}</button>
-        {!ev.viewer.loggedIn && ev.tickets.some((x) => x.memberPriceJpy < x.nonMemberPriceJpy) && (
-          <p className="pe-note">{t("pub.reg.memberDiscountHint")}</p>
-        )}
       </>
     );
   }
   const prices = ev.tickets.filter((x) => x.remaining !== 0).map((x) => x.yourPriceJpy);
   const paid = prices.filter((x) => x > 0);
   return (
-    <section className="pe-box pe-regbox" aria-labelledby="pe-reg-h">
+    <section className="pe-box pe-regbox" aria-labelledby="pe-reg-h" data-state={state}>
       <h2 id="pe-reg-h">{t("pub.reg.title")}</h2>
       {prices.length > 0 && <p className="pe-from">{paid.length ? t("pub.fromPrice", { price: formatJpy(Math.min(...paid)) }) : t("pub.free")}</p>}
       <div className="pe-regbody">{body}</div>
@@ -72,24 +90,36 @@ export default function EventPage({ navigateTo, slug }) {
   const [ev, setEv] = useState(null);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  const load = () => {
     let cancelled = false;
+    setError("");
+    setEv(null);
     getPublicEvent(slug)
       .then((d) => {
         if (cancelled) return;
-        if (d.legacy && d.event.legacyPath) navigateTo(d.event.legacyPath, { replace: true });
-        else {
-          setEv(d.event);
-          document.title = `${d.event.title} | WMF Japan`;
-        }
+        const event = normalizeEvent(d.event);
+        setEv(event);
+        document.title = `${event.title} | ${siteConfig.name}`;
       })
-      .catch((e) => !cancelled && setError(e.status === 404 ? t("pub.notFound") : e.message));
+      .catch((e) => !cancelled && setError(e.status === 404 ? t("pub.notFound") : e.message || t("pub.error.generic")));
     return () => {
       cancelled = true;
     };
-  }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps -- navigateTo is recreated on every render
+  };
 
-  if (error) return <EventShell navigateTo={navigateTo}><ErrorBox message={error} /></EventShell>;
+  useEffect(load, [slug]);
+
+  if (error) {
+    return (
+      <EventShell navigateTo={navigateTo}>
+        <ErrorBox message={error} />
+        <div className="btn-row">
+          <button type="button" className="button secondary" onClick={load}>{t("pub.retry")}</button>
+          <button type="button" className="button secondary" onClick={() => navigateTo("/events")}>{t("pub.nav.allEvents")}</button>
+        </div>
+      </EventShell>
+    );
+  }
   if (!ev) return <EventShell navigateTo={navigateTo}><Loading /></EventShell>;
 
   const d = ev.design || {};
@@ -123,7 +153,7 @@ export default function EventPage({ navigateTo, slug }) {
         <div className="pe-columns">
           <div className="pe-main">
             {ev.shortDescription && <p className="pe-lead">{ev.shortDescription}</p>}
-            <div className="pe-rich" dangerouslySetInnerHTML={{ __html: ev.longDescription }} />
+            {ev.longDescription && <div className="pe-rich" dangerouslySetInnerHTML={{ __html: ev.longDescription }} />}
 
             {ev.tickets.length > 0 && (
               <section aria-labelledby="pe-tix-h" className="pe-section">
@@ -134,14 +164,11 @@ export default function EventPage({ navigateTo, slug }) {
                       <div className="pe-ticket-info">
                         <strong>{x.name}</strong>
                         {x.description && <p className="pe-meta">{x.description}</p>}
-                        {x.earlyBirdOpen && <p className="pe-note">{t("pub.earlyBird", { price: formatJpy(x.earlyBirdMemberPriceJpy), until: formatJst(x.earlyBirdCutoff) })}</p>}
+                        {x.earlyBirdOpen && <p className="pe-note">{t("pub.earlyBird", { price: formatJpy(x.earlyBirdPriceJpy), until: formatJst(x.earlyBirdCutoff) })}</p>}
                         {x.perPersonCap && <p className="pe-meta">{t("pub.maxPer", { n: x.perPersonCap })}</p>}
                       </div>
                       <div className="pe-prices">
                         <span className="pe-price">{formatJpy(x.yourPriceJpy)}</span>
-                        {x.memberPriceJpy !== x.nonMemberPriceJpy && (
-                          <small>{t("pub.memberVsGuest", { member: formatJpy(x.memberPriceJpy), guest: formatJpy(x.nonMemberPriceJpy) })}</small>
-                        )}
                         {x.remaining === 0 ? <small className="pe-warn">{t("pub.soldOut")}</small>
                           : x.remaining !== null && x.remaining <= 10 && <small className="pe-warn">{t("pub.fewLeft", { n: x.remaining })}</small>}
                       </div>
@@ -167,7 +194,7 @@ export default function EventPage({ navigateTo, slug }) {
           </section>
         )}
           </div>
-          <aside className="pe-aside"><RegistrationBox ev={ev} navigateTo={navigateTo} /></aside>
+          <aside className="pe-aside"><RegistrationBox ev={ev} navigateTo={navigateTo} /><AddonList ev={ev} /></aside>
         </div>
       </article>
     </EventShell>

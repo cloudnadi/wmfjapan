@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 import event_model  # noqa: E402
 import event_registrations as logic  # noqa: E402
-from event_fakes import (ACTIVE_MEMBER, ADULT, ANSWERS, EXPIRED_MEMBER, FREE, NOW, FakePayments, FakeStore)  # noqa: E402
+from event_fakes import (ACCOUNT, ADULT, ANSWERS, OTHER_ACCOUNT, FREE, NOW, FakePayments, FakeStore)  # noqa: E402
 
 METHODS = {"square": {}, "bank": {}, "paypay": {}}
 
@@ -29,12 +29,12 @@ class Base(unittest.TestCase):
         self.event = self.store.add_event()
         self.store.add_tickets("e1", ADULT, FREE)
 
-    def reg(self, tickets=None, member=None, event=None, answers=None, method="square", now=NOW, key="k1", **extra):
+    def reg(self, tickets=None, account=None, event=None, answers=None, method="square", now=NOW, key="k1", **extra):
         event = event or self.store.get_event("e1")
         body = {"tickets": {"adult": 2} if tickets is None else tickets, "answers": {**ANSWERS, **(answers or {})}, "paymentMethod": method,
                 "idempotencyKey": key, **extra}
         return logic.register(event=event, tickets=self.store.get_tickets("e1"), form=self.store.latest_form("f1"),
-                              body=body, member=member, methods=METHODS, now=now, redirect_base="https://site.test")
+                              body=body, account=account, methods=METHODS, now=now, redirect_base="https://site.test")
 
     def counters(self):
         return dict(self.store.counters)
@@ -45,7 +45,7 @@ class CreateTests(Base):
         reg, created = self.reg()
         self.assertTrue(created)
         self.assertEqual((reg["status"], reg["paymentStatus"], reg["totalJpy"], reg["seats"]), ("pending_payment", "pending", 3000, 2))
-        self.assertRegex(reg["registrationId"], r"^NK-[0-9A-Z]{4}-[0-9A-Z]{4}$")
+        self.assertRegex(reg["registrationId"], r"^WMF-[0-9A-Z]{4}-[0-9A-Z]{4}$")
         self.assertEqual(reg["holdUntil"], (NOW + timedelta(minutes=30)).isoformat(timespec="seconds"))
         self.assertEqual(reg["checkoutUrl"], "https://square.test/order-1")
         self.assertEqual(self.store.find_by_provider_id("order-1")["registrationId"], reg["registrationId"])
@@ -53,7 +53,7 @@ class CreateTests(Base):
         self.assertEqual(self.pay.created[0]["amount"], 3000)
         self.assertIn("/events/picnic/registered?reg=", self.pay.created[0]["redirect"])
         self.assertEqual(self.sent, [("pending_payment", reg["registrationId"])])
-        self.assertNotIn("memberEmail", reg)
+        self.assertNotIn("accountEmail", reg)
 
     def test_bank_transfer_holds_for_seven_days_without_checkout(self):
         reg, _ = self.reg(method="bank")
@@ -73,19 +73,18 @@ class CreateTests(Base):
         self.assertEqual((reg["formId"], reg["formVersion"], reg["formHash"]), ("f1", 1, form["schemaHash"]))
         self.assertEqual(reg["consentedAt"], NOW.isoformat(timespec="seconds"))
         self.assertTrue(reg["checkInToken"])
-        self.assertEqual(reg["answers"]["membershipStatus"], "none")
 
-    def test_member_gets_member_price_account_email_and_system_fields(self):
-        reg, _ = self.reg(member=ACTIVE_MEMBER, answers={"email": "someone-else@example.com", "membershipStatus": "hack"})
-        self.assertEqual(reg["totalJpy"], 2000)
-        self.assertEqual(reg["email"], "m@example.com")
-        self.assertEqual((reg["memberEmail"], reg["memberId"]), ("m@example.com", "M1"))
-        self.assertEqual((reg["answers"]["membershipStatus"], reg["answers"]["membershipId"], reg["answers"]["membershipExpiry"]),
-                         ("active", "M1", "2027-03-31"))
+    def test_signed_in_attendee_gets_account_email_and_link(self):
+        reg, _ = self.reg(account=ACCOUNT, answers={"email": "someone-else@example.com"})
+        self.assertEqual(reg["totalJpy"], 3000)                       # one price for everyone
+        self.assertEqual(reg["email"], "m@example.com")               # the form cannot override the account address
+        self.assertEqual((reg["accountEmail"], reg["accountSub"]), ("m@example.com", "sub-1"))
 
-    def test_expired_member_pays_guest_price(self):
-        reg, _ = self.reg(member=EXPIRED_MEMBER)
-        self.assertEqual((reg["totalJpy"], reg["answers"]["membershipStatus"]), (3000, "expired"))
+    def test_early_bird_applies_to_everyone_until_the_cutoff(self):
+        early = {**ADULT, "earlyBirdPriceJpy": 1000, "earlyBirdCutoff": (NOW + timedelta(days=1)).isoformat()}
+        self.store.add_tickets("e1", early, FREE)
+        self.assertEqual(self.reg()[0]["totalJpy"], 2000)
+        self.assertEqual(self.reg(now=NOW + timedelta(days=2), key="k2")[0]["totalJpy"], 3000)
 
     def test_client_cannot_set_prices(self):
         reg, _ = self.reg(totalJpy=1, tickets={"adult": 1}, **{"unitJpy": 1})
@@ -123,7 +122,7 @@ class CreateTests(Base):
         with self.assertRaises(logic.RegError):
             logic.register(event=self.event, tickets=self.store.get_tickets("e1"), form=self.store.latest_form("f1"),
                            body={"tickets": {"adult": 1}, "answers": ANSWERS, "paymentMethod": "square"},
-                           member=None, methods={"bank": {}}, now=NOW)
+                           account=None, methods={"bank": {}}, now=NOW)
 
     def test_square_failure_rolls_the_booking_back(self):
         self.pay.fail = True
@@ -146,26 +145,12 @@ class AccessTests(Base):
                 self.reg(event=event)
             self.assertEqual((ctx.exception.status, ctx.exception.code), (409, code))
 
-    def test_members_only(self):
-        event = {**self.store.get_event("e1"), "access": {"membersOnly": True, "guestsAllowed": False, "requireRenewalCover": True}}
-        for member, code in ((None, "login_required"), (EXPIRED_MEMBER, "members_only")):
-            with self.assertRaises(logic.RegError) as ctx:
-                self.reg(event=event, member=member)
-            self.assertEqual((ctx.exception.status, ctx.exception.code), (403, code))
-        lapsed = {**ACTIVE_MEMBER, "summary": {"validNow": True, "coversRenewal": False}}
-        with self.assertRaises(logic.RegError) as ctx:
-            self.reg(event=event, member=lapsed)
-        self.assertEqual(ctx.exception.code, "renewal_required")
-        reg, _ = self.reg(event=event, member=ACTIVE_MEMBER)
-        self.assertEqual(reg["totalJpy"], 2000)
-        self.assertEqual(self.counters()["EVENT#e1"], 2)        # refused attempts took no seats
-
     def test_guests_not_allowed(self):
         event = {**self.store.get_event("e1"), "access": {"guestsAllowed": False}}
         with self.assertRaises(logic.RegError) as ctx:
             self.reg(event=event)
         self.assertEqual(ctx.exception.code, "login_required")
-        self.assertEqual(self.reg(event=event, member=EXPIRED_MEMBER)[0]["status"], "pending_payment")
+        self.assertEqual(self.reg(event=event, account=OTHER_ACCOUNT)[0]["status"], "pending_payment")
 
 
 class CapacityTests(Base):
@@ -390,66 +375,65 @@ class PromoteTests(Base):
 class SelfServiceTests(Base):
     def setUp(self):
         super().setUp()
-        self.mine, _ = self.reg(member=ACTIVE_MEMBER, method="bank")
+        self.mine, _ = self.reg(account=ACCOUNT, method="bank")
         self.form = self.store.latest_form("f1")
         self.event = self.store.get_event("e1")
 
     def test_edit_answers_only_validated_against_registered_form_version(self):
         new = {**self.mine["answers"], "fullName": "Ann B. Lee", "phone": "+81 80-0000-0000", "email": "attacker@example.com",
-               "membershipStatus": "none", "membershipId": "HACK"}
-        out = logic.member_edit(self.mine, self.event, self.form, new, ACTIVE_MEMBER, NOW)
+               }
+        out = logic.account_edit(self.mine, self.event, self.form, new, ACCOUNT, NOW)
         self.assertEqual((out["fullName"], out["phone"], out["revision"]), ("Ann B. Lee", "+81 80-0000-0000", 2))
-        self.assertEqual((out["answers"]["email"], out["answers"]["membershipStatus"], out["answers"]["membershipId"]),
-                         ("m@example.com", "active", "M1"))
+        self.assertEqual(out["answers"]["email"], "m@example.com")
         self.assertEqual((out["tickets"], out["totalJpy"]), (self.mine["tickets"], self.mine["totalJpy"]))   # price untouched
 
     def test_edit_validation_and_stale_revision(self):
         with self.assertRaises(logic.RegError) as ctx:
-            logic.member_edit(self.mine, self.event, self.form, {**self.mine["answers"], "fullName": ""}, ACTIVE_MEMBER, NOW)
+            logic.account_edit(self.mine, self.event, self.form, {**self.mine["answers"], "fullName": ""}, ACCOUNT, NOW)
         self.assertIn("fullName", ctx.exception.fields)
-        logic.member_edit(self.mine, self.event, self.form, self.mine["answers"], ACTIVE_MEMBER, NOW)
+        logic.account_edit(self.mine, self.event, self.form, self.mine["answers"], ACCOUNT, NOW)
         with self.assertRaises(logic.RegError) as ctx:
-            logic.member_edit(self.mine, self.event, self.form, self.mine["answers"], ACTIVE_MEMBER, NOW)     # stale copy
+            logic.account_edit(self.mine, self.event, self.form, self.mine["answers"], ACCOUNT, NOW)     # stale copy
         self.assertEqual(ctx.exception.status, 409)
 
     def test_only_the_owner_can_touch_a_registration(self):
-        stranger = {**ACTIVE_MEMBER, "email": "stranger@example.com"}
-        for fn in (lambda: logic.member_cancel(self.mine, self.event, stranger, NOW),
-                   lambda: logic.member_edit(self.mine, self.event, self.form, self.mine["answers"], stranger, NOW),
-                   lambda: logic.member_cancel(self.mine, self.event, None, NOW),
-                   lambda: logic.member_cancel(None, self.event, ACTIVE_MEMBER, NOW)):
+        stranger = {**ACCOUNT, "email": "stranger@example.com"}
+        for fn in (lambda: logic.account_cancel(self.mine, self.event, stranger, NOW),
+                   lambda: logic.account_edit(self.mine, self.event, self.form, self.mine["answers"], stranger, NOW),
+                   lambda: logic.account_cancel(self.mine, self.event, None, NOW),
+                   lambda: logic.account_cancel(None, self.event, ACCOUNT, NOW)):
             with self.assertRaises(logic.RegError) as ctx:
                 fn()
             self.assertEqual(ctx.exception.status, 404)
         guest, _ = self.reg(key="g", answers={"email": "guest@example.com"}, method="bank")
         with self.assertRaises(logic.RegError):
-            logic.member_cancel(guest, self.event, {**ACTIVE_MEMBER, "email": "guest@example.com"}, NOW)    # guests have no self-service
+            logic.account_cancel(guest, self.event, {**ACCOUNT, "email": "guest@example.com"}, NOW)    # guests have no self-service
 
     def test_cutoff_is_the_registration_close_time(self):
         event = {**self.event, "registrationClosesAt": "2026-09-01T18:00:00+09:00"}
-        logic.member_edit(self.mine, event, self.form, self.mine["answers"], ACTIVE_MEMBER, NOW)
+        logic.account_edit(self.mine, event, self.form, self.mine["answers"], ACCOUNT, NOW)
         late = NOW + timedelta(hours=7)
-        for fn in (lambda: logic.member_cancel(self.store.get_registration(self.mine["registrationId"]), event, ACTIVE_MEMBER, late),
-                   lambda: logic.member_edit(self.store.get_registration(self.mine["registrationId"]), event, self.form,
-                                             self.mine["answers"], ACTIVE_MEMBER, late)):
+        for fn in (lambda: logic.account_cancel(self.store.get_registration(self.mine["registrationId"]), event, ACCOUNT, late),
+                   lambda: logic.account_edit(self.store.get_registration(self.mine["registrationId"]), event, self.form,
+                                             self.mine["answers"], ACCOUNT, late)):
             with self.assertRaises(logic.RegError) as ctx:
                 fn()
             self.assertEqual((ctx.exception.status, ctx.exception.code), (409, "closed"))
 
     def test_member_cancel_releases_seats_and_paid_goes_to_refund(self):
         paid = logic.mark_paid(self.mine, via="bank", reference="r", now=NOW, event=self.event, actor="admin")
-        out = logic.member_cancel(paid, self.event, ACTIVE_MEMBER, NOW)
+        out = logic.account_cancel(paid, self.event, ACCOUNT, NOW)
         self.assertEqual((out["status"], out["paymentStatus"], out["cancelledBy"], out["cancelReason"]),
                          ("cancelled", "refund_pending", "m@example.com", "member_cancelled"))
         self.assertEqual(self.counters()["EVENT#e1"], 0)
         with self.assertRaises(logic.RegError) as ctx:
-            logic.member_cancel(out, self.event, ACTIVE_MEMBER, NOW)
+            logic.account_cancel(out, self.event, ACCOUNT, NOW)
         self.assertEqual(ctx.exception.status, 409)
 
     def test_cancelled_registration_cannot_be_edited(self):
-        out = logic.member_cancel(self.mine, self.event, ACTIVE_MEMBER, NOW)
+        out = logic.account_cancel(self.mine, self.event, ACCOUNT, NOW)
         with self.assertRaises(logic.RegError):
-            logic.member_edit(out, self.event, self.form, out["answers"], ACTIVE_MEMBER, NOW)
+            logic.account_edit(out, self.event, self.form, out["answers"], ACCOUNT, NOW)
 
 
 class HelperTests(unittest.TestCase):

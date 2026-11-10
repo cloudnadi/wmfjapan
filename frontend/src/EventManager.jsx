@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./eventPlatform.css";
+import AdminLogin from "./AdminLogin";
+import PaymentSettings from "./PaymentSettings";
 import { hasAdminSession } from "./adminSession";
+import { logout } from "./cognito";
 import { formatJpy, formatJst, isoToJstInput, jstInputToIso, t } from "./i18n";
+import EventAddons from "./EventAddons";
 import EventRegistrations from "./EventRegistrations";
+import { Check, DateTimeInput, ErrorSummary, Field, Input } from "./adminFields";
 import FormBuilder from "./FormBuilder";
 import Navbar from "./Navbar";
 import RichTextEditor from "./RichTextEditor";
@@ -26,20 +31,20 @@ const STATUSES = ["draft", "published", "unlisted", "closed", "archived"];
 const LAYOUTS = ["classic", "hero", "minimal"];
 const PAGE_SECTIONS = ["agenda", "speakers", "sponsors", "faq", "contact"];
 const PLACEHOLDERS = ["name", "event_title", "ticket_type", "registration_id", "event_date", "venue", "event_url"];
-const TABS = ["basics", "schedule", "location", "design", "tickets", "form", "registrations", "access", "emails", "history"];
+const TABS = ["basics", "schedule", "location", "design", "tickets", "addons", "form", "registrations", "access", "emails", "history"];
 const EDITABLE = [
   "slug", "title", "shortDescription", "longDescription", "category", "tags", "startsAt", "endsAt",
   "registrationOpensAt", "registrationClosesAt", "capacity", "waitlistEnabled", "location", "design", "access", "emails",
+  "capabilities", "slots", "upgrades", "seatMap",
 ];
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 const NEW_EVENT = { title: "", slug: "", status: "draft", revision: 0 };
 
 const WHO_OPTIONS = [
-  { key: "open", membersOnly: false, guestsAllowed: true },
-  { key: "signin", membersOnly: false, guestsAllowed: false },
-  { key: "members", membersOnly: true, guestsAllowed: false },
+  { key: "open", guestsAllowed: true },
+  { key: "signin", guestsAllowed: false },
 ];
-const whoOf = (access) => (access.membersOnly ? "members" : access.guestsAllowed === false ? "signin" : "open");
+const whoOf = (access) => (access.guestsAllowed === false ? "signin" : "open");
 
 const slugify = (text) => text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
@@ -57,7 +62,11 @@ function withDefaults(event) {
     location: event.location || {},
     emails: event.emails || {},
     waitlistEnabled: !!event.waitlistEnabled,
-    access: { membersOnly: false, guestsAllowed: true, requireRenewalCover: true, ...(event.access || {}) },
+    access: { guestsAllowed: true, ...(event.access || {}) },
+    capabilities: event.capabilities || {},
+    slots: event.slots || [],
+    upgrades: event.upgrades || [],
+    seatMap: event.seatMap || { sections: [] },
     design: { layout: "classic", accentColor: "#1a7f5a", gallery: [], ...(event.design || {}), sections: ordered },
   };
 }
@@ -111,85 +120,8 @@ function previewHtml(html) {
   return doc.body.firstChild.innerHTML;
 }
 
-function Field({ id, label, error, help, children, className = "" }) {
-  return (
-    <div className={`field ${className}`}>
-      <label htmlFor={id}>{label}</label>
-      {children}
-      {help && <small id={`${id}-help`}>{help}</small>}
-      {error && (
-        <span className="field-error" id={`${id}-error`} role="alert">
-          {error}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function Input({ id, label, value, onChange, error, help, type = "text", ...rest }) {
-  return (
-    <Field id={id} label={label} error={error} help={help}>
-      <input
-        id={id}
-        type={type}
-        value={value ?? ""}
-        className={error ? "input-invalid" : ""}
-        aria-invalid={!!error}
-        aria-describedby={[help && `${id}-help`, error && `${id}-error`].filter(Boolean).join(" ") || undefined}
-        onChange={(e) => onChange(e.target.value)}
-        {...rest}
-      />
-    </Field>
-  );
-}
-
-function DateTimeInput({ id, label, value, onChange, error, help }) {
-  return (
-    <Input
-      id={id}
-      label={`${label} (JST)`}
-      type="datetime-local"
-      value={isoToJstInput(value)}
-      onChange={(v) => onChange(jstInputToIso(v))}
-      error={error}
-      help={help}
-    />
-  );
-}
-
-function Check({ id, label, checked, onChange, help, disabled }) {
-  return (
-    <div className="field ep-check">
-      <label htmlFor={id}>
-        <input id={id} type="checkbox" checked={!!checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />{" "}
-        {label}
-      </label>
-      {help && <small>{help}</small>}
-    </div>
-  );
-}
-
 function StatusBadge({ status }) {
   return <span className={`ep-badge ep-badge-${status}`}>{t(`events.status.${status}`)}</span>;
-}
-
-function ErrorSummary({ message, fields }) {
-  const entries = Object.entries(fields || {});
-  if (!message && !entries.length) return null;
-  return (
-    <div className="error-banner" role="alert">
-      <strong>{message}</strong>
-      {entries.length > 0 && (
-        <ul>
-          {entries.map(([key, text]) => (
-            <li key={key}>
-              {key}: {text}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
 }
 
 // ── Preview ───────────────────────────────────────────────────────────────────
@@ -221,10 +153,7 @@ function EventPreview({ event, tickets }) {
           <ul className="ep-preview-tickets">
             {tickets.filter((x) => x.active !== false).map((x) => (
               <li key={x.ticketTypeId}>
-                {x.name}: {formatJpy(x.nonMemberPriceJpy)}{" "}
-                <small>
-                  {t("events.preview.memberPrice")} {formatJpy(x.memberPriceJpy)}
-                </small>
+                {x.name}: {formatJpy(x.priceJpy)}
               </li>
             ))}
           </ul>
@@ -244,7 +173,7 @@ function EventPreview({ event, tickets }) {
 
 // ── Tickets ───────────────────────────────────────────────────────────────────
 
-const EMPTY_TICKET = { name: "", description: "", memberPriceJpy: "", nonMemberPriceJpy: "", earlyBirdMemberPriceJpy: "",
+const EMPTY_TICKET = { name: "", description: "", priceJpy: "", earlyBirdPriceJpy: "",
   earlyBirdCutoff: "", quantityLimit: "", perPersonCap: "", sortOrder: 0, active: true };
 
 function numOrNull(value) {
@@ -261,9 +190,8 @@ function TicketsPanel({ eventId, tickets, setTickets, readOnly, hasRegistrations
     setError({ message: "", fields: {} });
     const body = {
       ...editing,
-      memberPriceJpy: numOrNull(editing.memberPriceJpy),
-      nonMemberPriceJpy: numOrNull(editing.nonMemberPriceJpy),
-      earlyBirdMemberPriceJpy: numOrNull(editing.earlyBirdMemberPriceJpy),
+      priceJpy: numOrNull(editing.priceJpy),
+      earlyBirdPriceJpy: numOrNull(editing.earlyBirdPriceJpy),
       earlyBirdCutoff: editing.earlyBirdCutoff || null,
       quantityLimit: numOrNull(editing.quantityLimit),
       perPersonCap: numOrNull(editing.perPersonCap),
@@ -309,8 +237,7 @@ function TicketsPanel({ eventId, tickets, setTickets, readOnly, hasRegistrations
           <thead>
             <tr>
               <th>{t("events.tickets.name")}</th>
-              <th>{t("events.tickets.member")}</th>
-              <th>{t("events.tickets.nonMember")}</th>
+              <th>{t("events.tickets.price")}</th>
               <th>{t("events.tickets.earlyBird")}</th>
               <th>{t("events.tickets.limit")}</th>
               <th>{t("events.tickets.cap")}</th>
@@ -320,7 +247,7 @@ function TicketsPanel({ eventId, tickets, setTickets, readOnly, hasRegistrations
           <tbody>
             {tickets.length === 0 && (
               <tr>
-                <td colSpan={7}>{t("events.tickets.none")}</td>
+                <td colSpan={6}>{t("events.tickets.none")}</td>
               </tr>
             )}
             {tickets.map((x) => (
@@ -328,11 +255,10 @@ function TicketsPanel({ eventId, tickets, setTickets, readOnly, hasRegistrations
                 <td data-label={t("events.tickets.name")}>
                   {x.name} {x.active === false && <em>({t("events.tickets.inactive")})</em>}
                 </td>
-                <td data-label={t("events.tickets.member")}>{formatJpy(x.memberPriceJpy)}</td>
-                <td data-label={t("events.tickets.nonMember")}>{formatJpy(x.nonMemberPriceJpy)}</td>
+                <td data-label={t("events.tickets.price")}>{formatJpy(x.priceJpy)}</td>
                 <td data-label={t("events.tickets.earlyBird")}>
-                  {x.earlyBirdMemberPriceJpy != null
-                    ? `${formatJpy(x.earlyBirdMemberPriceJpy)} → ${formatJst(x.earlyBirdCutoff)}`
+                  {x.earlyBirdPriceJpy != null
+                    ? `${formatJpy(x.earlyBirdPriceJpy)} → ${formatJst(x.earlyBirdCutoff)}`
                     : "—"}
                 </td>
                 <td data-label={t("events.tickets.limit")}>{x.quantityLimit ?? "—"}</td>
@@ -367,11 +293,10 @@ function TicketsPanel({ eventId, tickets, setTickets, readOnly, hasRegistrations
             <Input id="tk-desc" label={t("events.tickets.description")} value={editing.description} onChange={set("description")} />
           </div>
           <div className="field-row">
-            <Input id="tk-member" label={t("events.tickets.memberPrice")} type="number" min="0" step="1" value={editing.memberPriceJpy} onChange={set("memberPriceJpy")} error={f("memberPriceJpy")} required />
-            <Input id="tk-non" label={t("events.tickets.nonMemberPrice")} type="number" min="0" step="1" value={editing.nonMemberPriceJpy} onChange={set("nonMemberPriceJpy")} error={f("nonMemberPriceJpy")} required />
+            <Input id="tk-price" label={t("events.tickets.priceJpy")} type="number" min="0" step="1" value={editing.priceJpy} onChange={set("priceJpy")} error={f("priceJpy")} required />
           </div>
           <div className="field-row">
-            <Input id="tk-eb" label={t("events.tickets.earlyBirdPrice")} type="number" min="0" step="1" value={editing.earlyBirdMemberPriceJpy ?? ""} onChange={set("earlyBirdMemberPriceJpy")} error={f("earlyBirdMemberPriceJpy")} help={t("events.tickets.earlyBirdHelp")} />
+            <Input id="tk-eb" label={t("events.tickets.earlyBirdPrice")} type="number" min="0" step="1" value={editing.earlyBirdPriceJpy ?? ""} onChange={set("earlyBirdPriceJpy")} error={f("earlyBirdPriceJpy")} help={t("events.tickets.earlyBirdHelp")} />
             <DateTimeInput id="tk-ebc" label={t("events.tickets.earlyBirdCutoff")} value={editing.earlyBirdCutoff} onChange={set("earlyBirdCutoff")} error={f("earlyBirdCutoff")} />
           </div>
           <div className="field-row">
@@ -561,7 +486,7 @@ function EventEditor({ eventId, roles, onBack, onOpen }) {
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  const readOnly = draft.source === "legacy";
+  const readOnly = false;
   const isSuper = roles.includes("super_admin");
   const set = (path, value) => setDraft((cur) => setIn(cur, path, value));
 
@@ -642,7 +567,6 @@ function EventEditor({ eventId, roles, onBack, onOpen }) {
         )}
       </div>
 
-      {readOnly && <p className="ep-note" role="status">{t("events.legacyNote")}</p>}
       <ErrorSummary message={error.message} fields={errors} />
       {notice && <div className="success-banner" role="status">{notice}</div>}
 
@@ -728,11 +652,11 @@ function EventEditor({ eventId, roles, onBack, onOpen }) {
             <TicketsPanel eventId={eventId} tickets={tickets} setTickets={setTickets} readOnly={readOnly} hasRegistrations={hasRegistrations} />
           )}
 
+          {tab === "addons" && <EventAddons draft={draft} set={set} readOnly={readOnly} errors={errors} />}
+
           {tab === "form" && <FormBuilder eventId={eventId} roles={roles} readOnly={readOnly} />}
 
-          {tab === "registrations" && (readOnly
-            ? <p className="ep-note">{t("events.legacyNote")}</p>
-            : <EventRegistrations eventId={eventId} event={saved} tickets={tickets} roles={roles} />)}
+          {tab === "registrations" && <EventRegistrations eventId={eventId} event={saved} tickets={tickets} roles={roles} />}
 
           {tab === "access" && (
             <fieldset disabled={readOnly} className="ep-fieldset">
@@ -742,15 +666,11 @@ function EventEditor({ eventId, roles, onBack, onOpen }) {
                 {WHO_OPTIONS.map((opt) => (
                   <label key={opt.key} className={`ep-who-option ${whoOf(draft.access) === opt.key ? "selected" : ""}`}>
                     <input type="radio" name="ep-who" value={opt.key} checked={whoOf(draft.access) === opt.key}
-                      onChange={() => { set("access.membersOnly", opt.membersOnly); set("access.guestsAllowed", opt.guestsAllowed); }} />
+                      onChange={() => set("access.guestsAllowed", opt.guestsAllowed)} />
                     <span><strong>{t(`events.who.${opt.key}`)}</strong><small>{t(`events.who.${opt.key}Help`)}</small></span>
                   </label>
                 ))}
               </div>
-              {draft.access.membersOnly && (
-                <Check id="ep-renewal" label={t("events.requireRenewal")} checked={draft.access.requireRenewalCover}
-                  help={t("events.requireRenewalHelp")} onChange={(v) => set("access.requireRenewalCover", v)} />
-              )}
               {errors["access.guestsAllowed"] && <span className="field-error" role="alert">{errors["access.guestsAllowed"]}</span>}
             </fieldset>
           )}
@@ -832,7 +752,6 @@ function EventList({ onOpen, onNew, roles }) {
                 <th>{t("events.title")}</th>
                 <th>{t("events.col.status")}</th>
                 <th>{t("events.col.when")}</th>
-                <th>{t("events.col.source")}</th>
                 <th>{t("events.col.actions")}</th>
               </tr>
             </thead>
@@ -844,22 +763,17 @@ function EventList({ onOpen, onNew, roles }) {
                     <br /><small>/{ev.slug}</small>
                   </td>
                   <td data-label={t("events.col.status")}><StatusBadge status={ev.status} /></td>
-                  <td data-label={t("events.col.when")}>{ev.startsAt ? formatJst(ev.startsAt) : ev.legacyEventDate || "—"}</td>
-                  <td data-label={t("events.col.source")}>{ev.source === "legacy" ? t("events.legacy") : t("events.native")}</td>
+                  <td data-label={t("events.col.when")}>{ev.startsAt ? formatJst(ev.startsAt) : "—"}</td>
                   <td data-label={t("events.col.actions")}>
                     <div className="btn-row">
                       <button type="button" className="button secondary" onClick={() => onOpen(ev.eventId)}>
-                        {ev.source === "legacy" ? t("events.view") : t("events.edit")}
+                        {t("events.edit")}
                       </button>
-                      {ev.source !== "legacy" && (
-                        <>
-                          <button type="button" className="button secondary" disabled={busyId === ev.eventId}
-                            onClick={() => act(ev.eventId, () => duplicateEvent(ev.eventId))}>{t("events.duplicate")}</button>
-                          {ev.status !== "archived" && (
-                            <button type="button" className="button secondary" disabled={busyId === ev.eventId}
-                              onClick={() => act(ev.eventId, () => setEventStatus(ev.eventId, "archived"))}>{t("events.action.archived")}</button>
-                          )}
-                        </>
+                      <button type="button" className="button secondary" disabled={busyId === ev.eventId}
+                        onClick={() => act(ev.eventId, () => duplicateEvent(ev.eventId))}>{t("events.duplicate")}</button>
+                      {ev.status !== "archived" && (
+                        <button type="button" className="button secondary" disabled={busyId === ev.eventId}
+                          onClick={() => act(ev.eventId, () => setEventStatus(ev.eventId, "archived"))}>{t("events.action.archived")}</button>
                       )}
                     </div>
                   </td>
@@ -880,41 +794,59 @@ export default function EventManager({ navigateTo }) {
   const [view, setView] = useState({ name: "list" });
   const [roles, setRoles] = useState(null);
   const [error, setError] = useState("");
-  const signedIn = hasAdminSession();
+  const [signedIn, setSignedIn] = useState(() => hasAdminSession());
 
   useEffect(() => {
     if (!signedIn) return;
-    getMe().then((r) => setRoles(r.roles)).catch((e) => setError(e.status === 403 ? t("events.noAccess") : e.message));
+    getMe().then((r) => setRoles(r.roles)).catch((e) => {
+      if (e.status === 401) setSignedIn(false);
+      else setError(e.status === 403 ? t("events.noAccess") : e.message);
+    });
   }, [signedIn]);
+
+  const signOut = () => {
+    logout();
+    setRoles(null);
+    setSignedIn(false);
+    setView({ name: "list" });
+  };
+
+  if (!signedIn) {
+    return (
+      <>
+        <Navbar navigateTo={navigateTo} brand={t("admin.brand")} showUserMenu={false} links={[]} />
+        <main className="page-wrap">
+          <AdminLogin onSignedIn={() => { setError(""); setSignedIn(true); }} />
+        </main>
+      </>
+    );
+  }
+
+  const links = [
+    { label: t("admin.nav.events"), onClick: () => setView({ name: "list" }) },
+    { label: t("admin.nav.checkIn"), onClick: () => navigateTo("/admin/check-in") },
+    { label: t("admin.nav.payments"), onClick: () => setView({ name: "payments" }) },
+    { label: t("admin.nav.viewSite"), onClick: () => navigateTo("/") },
+    { label: t("site.nav.signOut"), onClick: signOut },
+  ];
 
   return (
     <>
-    <Navbar navigateTo={() => (window.location.pathname = "/")} brand="WMF Japan Admin" showUserMenu={false} />
+    <Navbar navigateTo={navigateTo} brand={t("admin.brand")} showUserMenu={false} links={links} />
     <main className="page-wrap">
-    <div className="event-header">
-      <div className="banner-title">Admin Dashboard</div>
-      <div className="sky-bar" />
-    </div>
     <section className="form-card admin-dashboard">
       <div className="admin-header">
-        <h2>{t("events.page.title")}</h2>
-        <div className="admin-header-actions">
-          <button type="button" className="button secondary" onClick={() => navigateTo("/admin")}>
-            {t("events.page.backToAdmin")}
-          </button>
-        </div>
+        <h2>{view.name === "payments" ? t("admin.payments.title") : t("events.page.title")}</h2>
+        {roles && <span className="ep-note">{roles.map((r) => t(`events.role.${r}`)).join(", ")}</span>}
       </div>
-      {!signedIn ? (
-        <div className="ep-card">
-          <p>{t("events.signInRequired")}</p>
-          <button type="button" className="button primary" onClick={() => navigateTo("/admin")}>{t("events.signIn")}</button>
-        </div>
-      ) : error ? (
+      {error ? (
         <ErrorSummary message={error} fields={{}} />
       ) : !roles ? (
         <p>{t("events.loading")}</p>
       ) : view.name === "list" ? (
         <EventList roles={roles} onNew={() => setView({ name: "edit", id: "" })} onOpen={(id) => setView({ name: "edit", id })} />
+      ) : view.name === "payments" ? (
+        <PaymentSettings roles={roles} />
       ) : (
         <EventEditor key={view.id || "new"} eventId={view.id} roles={roles} onBack={() => setView({ name: "list" })} onOpen={(id) => setView({ name: "edit", id })} />
       )}

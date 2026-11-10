@@ -1,4 +1,4 @@
-"""Public event API: listing, event page, quote, upload, register, token views, member self-service,
+"""Public event API: listing, event page, quote, upload, register, token views, attendee self-service,
 the Square webhook and the hold-expiry job."""
 
 import base64
@@ -15,14 +15,16 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-for sub in ("lambdas", "lambdas/membership", "plugins/seat-upgrade/backend/lambdas", "tests"):
+for sub in ("lambdas", "tests"):
     sys.path.insert(0, str(ROOT / sub))
 os.environ.setdefault("REGION", "ap-northeast-1")
-os.environ["OTP_TOKEN_SECRET"] = "test-secret"
-os.environ["MEMBERSHIP_AS_OF"] = "2026-09-01"
+os.environ["ATTENDEE_USER_POOL_ID"] = "ap-northeast-1_TESTPOOL"
+os.environ["ATTENDEE_APP_CLIENT_ID"] = "test-client-id"
 os.environ["ASSETS_BUCKET"] = "bucket"
 
+import cognito_jwt  # noqa: E402
 import event_model  # noqa: E402
+import jwt_fakes as jf  # noqa: E402
 import event_registrations as logic  # noqa: E402
 from event_fakes import ADULT, ANSWERS, FREE, NOW, FakePayments, FakeStore  # noqa: E402
 
@@ -39,10 +41,12 @@ webhook = load("ep_webhook", "lambdas/event_platform_webhook/handler.py")
 expiry = load("ep_expiry", "lambdas/event_platform_expiry/handler.py")
 
 
-def mint(email, exp=None):
-    payload = json.dumps({"email": email, "exp": exp or int(time.time()) + 3600}).encode()
-    b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
-    return f"{b64(payload)}.{b64(hmac.new(b'test-secret', payload, hashlib.sha256).digest())}"
+def mint(email, exp=None, **claims):
+    """An attendee ID token as the attendee pool would issue it (signed with a throw-away test key)."""
+    extra = {"email": email, "sub": f"sub-{email}", **claims}
+    if exp is not None:
+        extra["exp"] = exp
+    return jf.mint(extra)
 
 
 def req(method, path, body=None, token=None, query=None, ip="1.2.3.4"):
@@ -72,16 +76,14 @@ class Base(unittest.TestCase):
         self.event = self.store.add_event(shortDescription="Fun", category="Picnic", emails={"confirmation": {"subject": "S", "body": "B"}},
                                           location={"venueName": "Park", "onlineUrl": "https://zoom.test/secret", "address": "Tokyo"},
                                           createdBy="admin@example.com", design={"coverImage": "https://img/x.jpg", "accentColor": "#112233"})
-        self.store.add_tickets("e1", {**ADULT, "earlyBirdMemberPriceJpy": 800, "earlyBirdCutoff": "2026-09-10T00:00:00+09:00"}, FREE)
+        self.store.add_tickets("e1", ADULT, FREE)
         self.store.config["payment_methods_config"] = {"methods": {
             "square": {"enabled": True}, "bank": {"enabled": True, "instructions": "Account 123"},
             "paypay": {"enabled": False}}}
-        self.store.members["m@example.com"] = {"email": "m@example.com", "memberid": "M1", "npoMembershipActive": True, "fullname": "Mia"}
-        self.store.txns["M1"] = [{"membDateFrom": "2025-11-01", "membDateTo": "2027-10-31"}]
-        self.store.members["l@example.com"] = {"email": "l@example.com", "memberid": "M2", "npoMembershipActive": True, "fullname": "Lee"}
-        self.store.txns["M2"] = [{"membDateFrom": "2025-11-01", "membDateTo": "2026-10-31"}]      # valid now, not renewed
-        self.store.members["x@example.com"] = {"email": "x@example.com", "memberid": "M3", "npoMembershipActive": False}
-        self.store.txns["M3"] = [{"membDateFrom": "2023-11-01", "membDateTo": "2024-10-31"}]      # expired
+        verifier = cognito_jwt.CognitoVerifier(jf.REGION, jf.POOL, jf.CLIENT, fetcher=lambda url: jf.jwks("kid-1"))
+        patcher = mock.patch.object(public, "_verifier", verifier)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def call(self, *args, **kwargs):
         res = public.lambda_handler(req(*args, **kwargs), None)
@@ -99,18 +101,14 @@ class ListingTests(Base):
         self.store.add_event(eventId="e4", slug="link", title="Unlisted", status="unlisted", formId="f1")
         self.store.add_event(eventId="e5", slug="shut", title="Closed", status="closed", category="Other", formId="f1",
                              startsAt="2026-12-01T10:00:00+09:00", endsAt="2026-12-01T12:00:00+09:00")
-        legacy = event_model.legacy_event_to_v2({"eventType": "onam_2026", "eventName": "Onam", "status": "active",
-                                                 "eventDate": "2026-09-20", "registrationPath": "/onam/register"})
-        self.store.events[legacy["eventId"]] = legacy
         titles = lambda q: [e["title"] for e in self.call("GET", "events", query=q)[1]["events"]]
-        self.assertEqual(titles({"filter": "upcoming"}), ["Onam", "Picnic", "Closed"])
+        self.assertEqual(titles({"filter": "upcoming"}), ["Picnic", "Closed"])
         self.assertEqual(titles({"filter": "past"}), ["Old"])
-        self.assertEqual(sorted(titles({"filter": "all"})), ["Closed", "Old", "Onam", "Picnic"])
+        self.assertEqual(sorted(titles({"filter": "all"})), ["Closed", "Old", "Picnic"])
         self.assertEqual(titles({"category": "other", "filter": "all"}), ["Closed"])
         body = self.call("GET", "events")[1]
         self.assertEqual(body["categories"], ["Other", "Picnic"])
         by_title = {e["title"]: e for e in body["events"]}
-        self.assertEqual(by_title["Onam"]["legacyPath"], "/onam/register")
         self.assertNotIn("onlineUrl", by_title["Picnic"]["location"])
         self.assertTrue(by_title["Picnic"]["hasOnlineLink"])
 
@@ -139,32 +137,23 @@ class EventPageTests(Base):
         self.store.events["e1"]["status"] = "closed"
         self.assertEqual(self.page()["registration"]["window"], "closed")
 
-    def test_guest_member_and_early_bird_prices(self):
-        guest = {t["name"]: t for t in self.page()["tickets"]}
-        self.assertEqual((guest["Adult"]["yourPriceJpy"], guest["Adult"]["earlyBirdOpen"]), (1500, True))     # early bird shown, not given to guests
-        member = {t["name"]: t for t in self.page(token=mint("m@example.com"))["tickets"]}
-        self.assertEqual((member["Adult"]["yourPriceJpy"], member["Adult"]["yourPriceIsEarlyBird"]), (800, True))
-        expired = {t["name"]: t for t in self.page(token=mint("x@example.com"))["tickets"]}
-        self.assertEqual(expired["Adult"]["yourPriceJpy"], 1500)
-        self.assertTrue(self.page(token=mint("m@example.com"))["viewer"]["memberPricing"])
-        self.assertFalse(self.page(token=mint("x@example.com"))["viewer"]["memberPricing"])
+    def test_early_bird_price_applies_to_everyone_until_its_cutoff(self):
+        self.store.add_tickets("e1", {**ADULT, "earlyBirdPriceJpy": 800, "earlyBirdCutoff": "2026-09-10T00:00:00+09:00"}, FREE)
+        for token in (None, mint("m@example.com")):
+            adult = {t["name"]: t for t in self.page(token=token)["tickets"]}["Adult"]
+            self.assertEqual((adult["yourPriceJpy"], adult["yourPriceIsEarlyBird"], adult["earlyBirdOpen"]), (800, True, True))
+        self.store.add_tickets("e1", {**ADULT, "earlyBirdPriceJpy": 800, "earlyBirdCutoff": "2026-08-01T00:00:00+09:00"}, FREE)
+        adult = {t["name"]: t for t in self.page()["tickets"]}["Adult"]
+        self.assertEqual((adult["yourPriceJpy"], adult["earlyBirdOpen"]), (1500, False))
 
-    def test_viewer_membership_values_for_read_only_fields(self):
-        self.assertEqual(self.page()["viewer"]["system"]["membershipStatus"], "none")
-        system = self.page(token=mint("m@example.com"))["viewer"]["system"]
-        self.assertEqual((system["membershipId"], system["membershipStatus"], system["membershipExpiry"]), ("M1", "active", "2027-10-31"))
-        self.assertEqual(self.page(token=mint("x@example.com"))["viewer"]["system"]["membershipStatus"], "expired")
+    def test_viewer_is_the_signed_in_account_only(self):
+        viewer = self.page(token=mint("m@example.com", name="Mia"))["viewer"]
+        self.assertEqual((viewer["loggedIn"], viewer["email"], viewer["name"]), (True, "m@example.com", "Mia"))
+        self.assertEqual(self.page()["viewer"], {"loggedIn": False, "email": "", "name": ""})
+        self.assertNotIn("memberPricing", viewer)
 
     def test_invalid_token_on_a_page_view_is_just_a_guest(self):
         self.assertFalse(self.page(token="garbage")["viewer"]["loggedIn"])
-
-    def test_members_only_reasons(self):
-        self.store.events["e1"]["access"] = {"membersOnly": True, "guestsAllowed": False, "requireRenewalCover": True}
-        self.assertEqual(self.page()["registration"]["reason"], "login_required")
-        self.assertEqual(self.page(token=mint("x@example.com"))["registration"], {"window": "open", "allowed": False,
-                         "reason": "members_only", "renewUrl": True, "waitlist": False})
-        self.assertEqual(self.page(token=mint("l@example.com"))["registration"]["reason"], "renewal_required")
-        self.assertTrue(self.page(token=mint("m@example.com"))["registration"]["allowed"])
 
     def test_availability_and_waitlist_flag(self):
         self.store.events["e1"].update(capacity=2, waitlistEnabled=True)
@@ -179,20 +168,13 @@ class EventPageTests(Base):
         self.assertEqual([m["key"] for m in page["paymentMethods"]], ["square", "bank"])
         self.assertNotIn("Account 123", json.dumps(page))
 
-    def test_legacy_event_page(self):
-        legacy = event_model.legacy_event_to_v2({"eventType": "onam_2026", "eventName": "Onam", "status": "active",
-                                                 "registrationPath": "/onam/register"})
-        self.store.events[legacy["eventId"]] = legacy
-        status, body, _ = self.call("GET", "events/onam-2026")
-        self.assertEqual((status, body["legacy"], body["event"]["legacyPath"]), (200, True, "/onam/register"))
-
 
 class QuoteTests(Base):
     def test_quote_is_server_priced(self):
         status, body, _ = self.call("POST", "events/picnic/quote", {"tickets": {"adult": 2, "free": 1}, "totalJpy": 1})
         self.assertEqual((status, body["totalJpy"]), (200, 3000))
         status, body, _ = self.call("POST", "events/picnic/quote", {"tickets": {"adult": 2}}, token=mint("m@example.com"))
-        self.assertEqual(body["totalJpy"], 1600)
+        self.assertEqual(body["totalJpy"], 3000)                                  # signing in does not change the price
         self.assertEqual(self.call("POST", "events/picnic/quote", {"tickets": {"zz": 1}})[0], 400)
 
     def test_rate_limited(self):
@@ -222,42 +204,34 @@ class RegisterTests(Base):
     def test_free_confirmed_registration_has_qr_and_online_link(self):
         body = self.register({"tickets": {"free": 1}, "paymentMethod": None})[1]
         self.assertEqual(body["registration"]["status"], "confirmed")
-        self.assertTrue(body["qr"].startswith("NKEV1.NK-"))
+        self.assertTrue(body["qr"].startswith("WMFEV1.WMF-"))
         self.assertEqual(body["event"]["location"]["onlineUrl"], "https://zoom.test/secret")     # attendees only
 
-    def test_member_registration_uses_member_price_and_links_account(self):
+    def test_signed_in_registration_links_the_account_and_charges_the_same_price(self):
         body = self.register(token=mint("m@example.com"))[1]
-        self.assertEqual((body["registration"]["totalJpy"], body["registration"]["memberEmail"]), (1600, "m@example.com"))
+        self.assertEqual((body["registration"]["totalJpy"], body["registration"]["accountEmail"]), (3000, "m@example.com"))
+        self.assertEqual(body["registration"]["accountSub"], "sub-m@example.com")
 
     def test_expired_session_is_401_not_a_silent_guest_registration(self):
-        status, body, _ = self.register(token=mint("m@example.com", exp=int(time.time()) - 5))
+        status, body, _ = self.register(token=mint("m@example.com", exp=int(time.time()) - 600))
         self.assertEqual((status, body["code"]), (401, "session_expired"))
         self.assertEqual(self.register(token="garbage")[0], 401)
         self.assertEqual(self.store.regs, {})
 
-    def test_members_only_gating(self):
-        self.store.events["e1"]["access"] = {"membersOnly": True, "guestsAllowed": False, "requireRenewalCover": True}
-        self.assertEqual(self.register()[2] and self.register()[0], 403)
-        for email in ("x@example.com", "l@example.com"):
-            status, body, _ = self.register({"idempotencyKey": email}, token=mint(email))
-            self.assertEqual(status, 403, email)
-            self.assertIn(body["code"], ("members_only", "renewal_required"))
-        self.assertEqual(self.register(token=mint("m@example.com"))[0], 201)
-
     def test_guest_registration_can_be_switched_off_per_event(self):
-        self.store.events["e1"]["access"] = {"membersOnly": False, "guestsAllowed": False, "requireRenewalCover": True}
+        self.store.events["e1"]["access"] = {"guestsAllowed": False}
         status, body, _ = self.register()
         self.assertEqual((status, body["code"]), (403, "login_required"))
         listing = self.call("GET", "events")[1]["events"][0]
         self.assertFalse(listing["guestsAllowed"])
         page = self.call("GET", "events/picnic")[1]["event"]
         self.assertFalse(page["registration"]["allowed"])
-        # any signed-in user, including a lapsed member (who pays guest prices), may still register
+        # any signed-in user may still register
         status, body, _ = self.register({"idempotencyKey": "lapsed"}, token=mint("x@example.com"))
         self.assertEqual(status, 201, body)
         self.assertEqual(body["registration"]["totalJpy"], 3000)
         # and with guests on (the default) the same anonymous request works
-        self.store.events["e1"]["access"] = {"membersOnly": False, "guestsAllowed": True, "requireRenewalCover": True}
+        self.store.events["e1"]["access"] = {"guestsAllowed": True}
         self.assertEqual(self.register({"idempotencyKey": "guest"})[0], 201)
         self.assertTrue(self.call("GET", "events")[1]["events"][0]["guestsAllowed"])
 
@@ -296,13 +270,6 @@ class RegisterTests(Base):
     def test_rate_limiter_outage_fails_open(self):
         with mock.patch.object(self.store, "rate_limit_allows", side_effect=RuntimeError("down")):
             self.assertEqual(self.register()[0], 201)
-
-    def test_legacy_events_cannot_be_registered_here(self):
-        legacy = event_model.legacy_event_to_v2({"eventType": "onam_2026", "eventName": "Onam", "status": "active",
-                                                 "registrationPath": "/onam/register"})
-        self.store.events[legacy["eventId"]] = legacy
-        status, body, _ = self.call("POST", "events/onam-2026/register", {})
-        self.assertEqual((status, body["code"], body["fields"]["path"]), (409, "legacy", "/onam/register"))
 
     def test_bad_bodies(self):
         bad = req("POST", "events/picnic/register")
@@ -369,7 +336,7 @@ class TokenViewTests(Base):
         rid = self.reg["registrationId"]
         for query in (None, {"token": "wrong"}, {"token": ""}):
             self.assertEqual(self.call("GET", f"registrations/{rid}", query=query)[0], 404)
-        self.assertEqual(self.call("GET", "registrations/NK-NOPE-NOPE", query=self.q)[0], 404)
+        self.assertEqual(self.call("GET", "registrations/WMF-NOPE-NOPE", query=self.q)[0], 404)
         status, body, _ = self.call("GET", f"registrations/{rid}", query=self.q)
         self.assertEqual((status, body["registration"]["status"]), (200, "pending_payment"))
 
@@ -415,9 +382,9 @@ class SelfServiceTests(Base):
         self.assertNotIn("extra", [f["key"] for f in view["form"]["fields"]])
 
     def test_edit_and_cancel(self):
-        answers = {**self.reg["answers"], "fullName": "Mia Q", "membershipStatus": "none"}
+        answers = {**self.reg["answers"], "fullName": "Mia Q"}
         status, body, _ = self.call("PUT", f"my/registrations/{self.rid}", {"answers": answers}, token=self.token)
-        self.assertEqual((status, body["registration"]["fullName"], body["registration"]["answers"]["membershipStatus"]), (200, "Mia Q", "active"))
+        self.assertEqual((status, body["registration"]["fullName"]), (200, "Mia Q"))
         self.assertEqual(self.call("PUT", f"my/registrations/{self.rid}", {"answers": {**answers, "fullName": ""}}, token=self.token)[0], 400)
         status, body, _ = self.call("DELETE", f"my/registrations/{self.rid}", token=self.token)
         self.assertEqual((status, body["registration"]["status"]), (200, "cancelled"))
@@ -429,7 +396,7 @@ class SelfServiceTests(Base):
         other = mint("l@example.com")
         for method in ("GET", "PUT", "DELETE"):
             self.assertEqual(self.call(method, f"my/registrations/{self.rid}", {"answers": {}}, token=other)[0], 404, method)
-        self.assertEqual(self.call("GET", "my/registrations/NK-NONE-NONE", token=self.token)[0], 404)
+        self.assertEqual(self.call("GET", "my/registrations/WMF-NONE-NONE", token=self.token)[0], 404)
 
     def test_after_registration_closes_only_organisers_can_change(self):
         self.store.events["e1"]["registrationClosesAt"] = (NOW - timedelta(hours=1)).isoformat()
@@ -503,7 +470,7 @@ class StoreTransactionTests(unittest.TestCase):
         p = mock.patch.object(real, "client", self.client)
         p.start()
         self.addCleanup(p.stop)
-        self.reg = {"registrationId": "NK-1", "eventId": "e1", "status": "confirmed", "total": 1.5}
+        self.reg = {"registrationId": "WMF-1", "eventId": "e1", "status": "confirmed", "total": 1.5}
 
     def cancel(self, codes):
         from botocore.exceptions import ClientError
@@ -534,7 +501,7 @@ class StoreTransactionTests(unittest.TestCase):
         self.assertEqual(ctx.exception.scope, "ticket")
         self.cancel(["ConditionalCheckFailed", "None"])
         with self.assertRaises(logic.StateConflict):
-            self.real.release("NK-1", "confirmed", {"status": "cancelled"}, [("EVENT#e1", 1)])
+            self.real.release("WMF-1", "confirmed", {"status": "cancelled"}, [("EVENT#e1", 1)])
 
     def test_request_bigger_than_limit_fails_without_calling_dynamo(self):
         with self.assertRaises(logic.CapacityFull):
@@ -544,7 +511,7 @@ class StoreTransactionTests(unittest.TestCase):
     def test_release_shape(self):
         self.client.transact_write_items.return_value = {}
         with mock.patch.object(self.real, "get_registration", return_value={}):
-            self.real.release("NK-1", "confirmed", {"status": "cancelled"}, [("EVENT#e1", 2)], remove=["holdUntil"])
+            self.real.release("WMF-1", "confirmed", {"status": "cancelled"}, [("EVENT#e1", 2)], remove=["holdUntil"])
         items = self.client.transact_write_items.call_args.kwargs["TransactItems"]
         self.assertEqual(items[0]["Update"]["ConditionExpression"], "#st = :es")
         self.assertIn("REMOVE", items[0]["Update"]["UpdateExpression"])

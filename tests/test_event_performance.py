@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-for sub in ("lambdas", "lambdas/membership", "plugins/seat-upgrade/backend/lambdas", "tests"):
+for sub in ("lambdas", "tests"):
     sys.path.insert(0, str(ROOT / sub))
 os.environ.setdefault("REGION", "ap-northeast-1")
 
@@ -21,7 +21,7 @@ def make_regs():
     regs = []
     for i in range(N):
         regs.append({
-            "registrationId": f"NK-{i:04d}", "eventId": "e1", "source": "native", "fullName": f"Person {i}", "email": f"p{i}@example.com",
+            "registrationId": f"WMF-{i:04d}", "eventId": "e1", "source": "native", "fullName": f"Person {i}", "email": f"p{i}@example.com",
             "status": ("confirmed", "pending_payment", "waitlisted", "cancelled")[i % 4], "paymentStatus": ("paid", "pending", "none", "refunded")[i % 4],
             "totalJpy": 1500 * (1 + i % 3), "tickets": [{"ticketTypeId": "adult", "name": "Adult", "qty": 1 + i % 3, "unitPriceJpy": 1500, "subtotalJpy": 1500 * (1 + i % 3)}],
             "createdAt": f"2026-09-{1 + i % 28:02d}T10:{i % 60:02d}:00+09:00", "answers": {"fullName": f"Person {i}", "email": f"p{i}@example.com", "note": "x" * 50},

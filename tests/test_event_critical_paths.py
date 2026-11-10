@@ -1,7 +1,6 @@
 """Critical-path regression tests: login token -> price -> register -> pay -> check-in -> cancel/refund,
 capacity under repeated booking, webhook/expiry races, and payment idempotency."""
 
-import importlib.util
 import json
 import os
 import sys
@@ -17,15 +16,6 @@ ROOT = tp.ROOT
 import event_registration_admin as radm  # noqa: E402
 
 
-def load_auth_otp():
-    env = {"REGION": "ap-northeast-1", "OTP_TABLE": "otp", "SES_FROM_EMAIL": "a@b.test", "OTP_TOKEN_SECRET": "test-secret"}
-    with mock.patch.dict(os.environ, env):
-        spec = importlib.util.spec_from_file_location("auth_otp_real", ROOT / "lambdas" / "auth_otp" / "handler.py")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-    return module
-
-
 def paid_hook(order="order-1", amount=None):
     payment = {"id": "pay-1", "order_id": order, "status": "COMPLETED"}
     if amount is not None:
@@ -33,19 +23,16 @@ def paid_hook(order="order-1", amount=None):
     return json.dumps({"type": "payment.updated", "data": {"object": {"payment": payment}}})
 
 
-class LoginCompatibility(tp.Base):
-    def test_token_minted_by_the_real_login_lambda_is_accepted(self):
-        auth = load_auth_otp()
-        token = auth.mint_token("m@example.com")
-        status, body, _ = self.register({"idempotencyKey": "login-1"}, token=token)
+class IdentityChecks(tp.Base):
+    def test_signed_in_registration_charges_the_ticket_price_and_links_the_account(self):
+        status, body, _ = self.register({"idempotencyKey": "login-1"}, token=tp.mint("m@example.com"))
         self.assertEqual(status, 201, body)
-        self.assertEqual(body["registration"]["memberEmail"], "m@example.com")
-        self.assertEqual(body["registration"]["totalJpy"], 1600)    # early-bird member price (2 x 800)
+        self.assertEqual(body["registration"]["accountEmail"], "m@example.com")
+        self.assertEqual(body["registration"]["totalJpy"], 3000)
 
     def test_tampered_token_is_rejected_not_downgraded_to_guest(self):
-        token = tp.mint("m@example.com")
-        payload, sig = token.split(".")
-        forged = tp.mint("l@example.com").split(".")[0] + "." + sig
+        header, payload, sig = tp.mint("m@example.com").split(".")
+        forged = ".".join([header, tp.mint("l@example.com").split(".")[1], sig])
         self.assertEqual(self.register({"idempotencyKey": "t"}, token=forged)[0], 401)
 
 

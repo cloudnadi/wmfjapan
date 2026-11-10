@@ -118,7 +118,7 @@
 .reg-card-label { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
 .reg-card-value { font-size: 1.8rem; font-weight: 800; }
 .reg-bar { height: 8px; background: var(--surface-3); border-radius: 4px; overflow: hidden; margin: 6px 0; }
-.reg-bar span { display: block; height: 100%; background: var(--nk-green); }
+.reg-bar span { display: block; height: 100%; background: var(--wmf-green); }
 .reg-attention { display: flex; flex-wrap: wrap; gap: 8px; }
 .reg-attention button { cursor: pointer; background: transparent; font: inherit; }
 .reg-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px 12px; margin: 12px 0; }
@@ -142,7 +142,7 @@
 .ep-who { display: grid; gap: 10px; margin: 0 0 16px; }
 .ep-who-title { margin: 0; font-weight: 700; }
 .ep-who-option { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; text-transform: none; letter-spacing: 0; }
-.ep-who-option.selected { border-color: var(--nk-green); background: var(--glass); }
+.ep-who-option.selected { border-color: var(--wmf-green); background: var(--glass); }
 .ep-who-option input { margin-top: 4px; }
 .ep-who-option strong { display: block; }
 .ep-who-option small { display: block; color: var(--text-muted); }

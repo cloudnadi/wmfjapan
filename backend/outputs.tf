@@ -3,88 +3,8 @@ output "api_base_url" {
   value       = "https://${aws_api_gateway_rest_api.main.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}"
 }
 
-output "register_endpoint" {
-  description = "POST endpoint for registration form"
-  value       = "https://${aws_api_gateway_rest_api.main.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}/register"
-}
-
-output "auth_request_otp_endpoint" {
-  description = "POST endpoint to request a login OTP by email"
-  value       = "https://${aws_api_gateway_rest_api.main.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}/auth/request-otp"
-}
-
-output "auth_verify_otp_endpoint" {
-  description = "POST endpoint to verify a login OTP and receive an access token"
-  value       = "https://${aws_api_gateway_rest_api.main.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}/auth/verify-otp"
-}
-
-output "visits_endpoint" {
-  description = "POST endpoint for SPA page-visit logging"
-  value       = "https://${aws_api_gateway_rest_api.main.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}/visits"
-}
-
-output "membership_status_endpoint" {
-  description = "GET endpoint for NPO membership status (requires reg access token)"
-  value       = "https://${aws_api_gateway_rest_api.main.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}/membership/status"
-}
-
-output "npo_membership_table_name" {
-  description = "Name of the DynamoDB table storing NPO membership records"
-  value       = aws_dynamodb_table.npo_membership.name
-}
-
-output "members_table_name" {
-  description = "Name of the DynamoDB members master table (login gate list)"
-  value       = aws_dynamodb_table.members.name
-}
-
-output "admin_registrations_endpoint" {
-  description = "GET endpoint for admin — list all registrations"
-  value       = "https://${aws_api_gateway_rest_api.main.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}/admin/registrations"
-}
-
-output "admin_export_endpoint" {
-  description = "GET endpoint for admin — CSV export"
-  value       = "https://${aws_api_gateway_rest_api.main.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}/admin/export"
-}
-
-output "admin_partners_endpoint" {
-  description = "GET/POST endpoint for admin — manage partners"
-  value       = "https://${aws_api_gateway_rest_api.main.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}/admin/partners"
-}
-
-output "admin_events_endpoint" {
-  description = "GET/POST endpoint for admin — manage events"
-  value       = "https://${aws_api_gateway_rest_api.main.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}/admin/events"
-}
-
-output "admin_registration_endpoint" {
-  description = "POST/DELETE endpoint for admin — manage individual registrations"
-  value       = "https://${aws_api_gateway_rest_api.main.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}/admin/registration"
-}
-
-output "admin_users_endpoint" {
-  description = "GET endpoint for admin — registrants with NPO status"
-  value       = "https://${aws_api_gateway_rest_api.main.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}/admin/users"
-}
-
-output "admin_visits_summary_endpoint" {
-  description = "GET endpoint for admin — visits analytics summary"
-  value       = "https://${aws_api_gateway_rest_api.main.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}/admin/visits-summary"
-}
-
-output "site_config_endpoint" {
-  description = "GET endpoint (public) — current carousel image URLs"
-  value       = "https://${aws_api_gateway_rest_api.main.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}/site-config"
-}
-
-output "admin_site_config_endpoint" {
-  description = "GET/PUT endpoint (admin) — manage carousel images"
-  value       = "https://${aws_api_gateway_rest_api.main.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}/admin/site-config"
-}
-
 output "assets_bucket_name" {
-  description = "S3 bucket for carousel images and media assets"
+  description = "S3 bucket for event images and registration uploads"
   value       = aws_s3_bucket.assets.id
 }
 
@@ -108,78 +28,30 @@ output "cognito_region" {
   value       = var.aws_region
 }
 
-output "registration_table_name" {
-  description = "Name of the DynamoDB table storing registrations"
-  value       = aws_dynamodb_table.registrations.name
-}
-
-output "registration_table_arn" {
-  description = "ARN of the DynamoDB table storing registrations"
-  value       = aws_dynamodb_table.registrations.arn
-}
-
-output "events_table_name" {
-  value       = aws_dynamodb_table.events.name
-  description = "Name of the DynamoDB table storing events metadata"
-}
-
-output "events_table_arn" {
-  value       = aws_dynamodb_table.events.arn
-  description = "ARN of the DynamoDB table storing events metadata"
-}
-
-output "entry_slots_table_name" {
-  value       = aws_dynamodb_table.entry_slots.name
-  description = "Name of the DynamoDB table storing entry slot definitions"
-}
-
-output "entry_slots_table_arn" {
-  value       = aws_dynamodb_table.entry_slots.arn
-  description = "ARN of the DynamoDB table storing entry slots"
-}
-
-output "slot_reservations_table_name" {
-  value       = aws_dynamodb_table.slot_reservations.name
-  description = "Name of the DynamoDB table storing slot reservations"
-}
-
-output "slot_reservations_table_arn" {
-  value       = aws_dynamodb_table.slot_reservations.arn
-  description = "ARN of the DynamoDB table storing slot reservations"
-}
-
-output "entry_allocations_table_name" {
-  value       = aws_dynamodb_table.entry_allocations.name
-  description = "Name of the DynamoDB table storing entry allocations"
-}
-
-output "entry_check_ins_table_name" {
-  value       = aws_dynamodb_table.entry_check_ins.name
-  description = "Name of the DynamoDB table storing entry check-ins"
-}
-
-
 output "ses_from_email" {
   description = "SES sender email (must be verified in SES before emails work)"
   value       = var.ses_from_email
 }
 
 output "create_admin_user_command" {
-  description = "Run this command after deploy to create the first admin user"
+  description = "Run after deploy to create the first admin (set a real temporary password; the user must change it at first sign-in)"
   value       = <<-EOT
     aws cognito-idp admin-create-user \
       --user-pool-id ${aws_cognito_user_pool.admin.id} \
       --username ${var.cognito_admin_email} \
       --user-attributes Name=email,Value=${var.cognito_admin_email} Name=email_verified,Value=true \
-      --temporary-password "Test12345678@" \
+      --temporary-password '<choose-a-temporary-password>' \
       --region ${var.aws_region}
 
-    # Then add user to Admins group:
+    # Super admin (everything, including payment settings):
     aws cognito-idp admin-add-user-to-group \
       --user-pool-id ${aws_cognito_user_pool.admin.id} \
       --username ${var.cognito_admin_email} \
       --group-name Admins \
       --region ${var.aws_region}
+
+    # Event manager (events, forms, registrations) instead of Admins:
+    #   --group-name EventManagers
   EOT
 }
 
@@ -222,7 +94,7 @@ output "frontend_url" {
 output "deploy_frontend_command" {
   description = "Command to deploy built frontend to S3 and invalidate CloudFront"
   value = var.enable_s3_frontend ? (<<-EOT
-# Build the frontend (from event-registration/wmfjapan/frontend):
+# Build the frontend (from the frontend/ directory):
 ${contains(["dev", "staging", "preview"], var.environment) ? "npm run build:preview" : "npm run build"}
 # Sync dist/ to S3:
 ../scripts/deploy_frontend.sh ${aws_s3_bucket.frontend.id} dist
@@ -296,4 +168,26 @@ output "event_counters_table_name" {
 output "audit_log_table_name" {
   value       = aws_dynamodb_table.audit_log.name
   description = "Event platform: admin audit log"
+}
+
+# ── Attendee accounts (Cognito) — public values, used to build the frontend ──
+
+output "attendee_user_pool_id" {
+  description = "Attendee Cognito user pool ID (frontend VITE_AUTH_USER_POOL_ID)"
+  value       = aws_cognito_user_pool.attendees.id
+}
+
+output "attendee_app_client_id" {
+  description = "Attendee Cognito app client ID (frontend VITE_AUTH_CLIENT_ID)"
+  value       = aws_cognito_user_pool_client.attendees.id
+}
+
+output "attendee_hosted_ui_domain" {
+  description = "Hosted UI / OAuth domain without scheme (frontend VITE_AUTH_COGNITO_DOMAIN)"
+  value       = "${aws_cognito_user_pool_domain.attendees.domain}.auth.${var.aws_region}.amazoncognito.com"
+}
+
+output "attendee_social_providers" {
+  description = "Comma-separated social provider names enabled on the attendee client (frontend VITE_AUTH_SOCIAL_PROVIDERS)"
+  value       = join(",", local.attendee_social_provider_names)
 }

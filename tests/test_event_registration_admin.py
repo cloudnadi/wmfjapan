@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 import event_model  # noqa: E402
 import event_registration_admin as adm  # noqa: E402
 import event_registrations as logic  # noqa: E402
-from event_fakes import (ACTIVE_MEMBER, ADULT, ANSWERS, FREE, NOW, FakePayments, FakeStore)  # noqa: E402
+from event_fakes import (ACCOUNT, ADULT, ANSWERS, FREE, NOW, FakePayments, FakeStore)  # noqa: E402
 
 METHODS = {"square": {}, "bank": {}, "paypay": {}}
 
@@ -33,16 +33,16 @@ class Base(unittest.TestCase):
         self.store.forms[("f1", 1)] = event_model.new_form_version("f1", None, fields, event_id="e1")
         self.form = self.store.latest_form("f1")
 
-    def public(self, key="k", tickets=None, member=None, method="bank", **answers):
+    def public(self, key="k", tickets=None, account=None, method="bank", **answers):
         body = {"tickets": tickets or {"adult": 1}, "answers": {**ANSWERS, **answers}, "paymentMethod": method, "idempotencyKey": key}
         reg, _ = logic.register(event=self.store.get_event("e1"), tickets=self.store.get_tickets("e1"), form=self.form,
-                                body=body, member=member, methods=METHODS, now=NOW)
+                                body=body, account=account, methods=METHODS, now=NOW)
         return reg
 
-    def add(self, body=None, member=None, event=None):
+    def add(self, body=None, account=None, event=None):
         payload = {"tickets": {"adult": 2}, "answers": ANSWERS, "idempotencyKey": "m1", **(body or {})}
         return adm.manual_add(event=event or self.store.get_event("e1"), tickets=self.store.get_tickets("e1"), form=self.form,
-                              body=payload, member=member, now=NOW, actor="admin@example.com")
+                              body=payload, account=account, now=NOW, actor="admin@example.com")
 
 
 class QueryTests(Base):
@@ -137,10 +137,6 @@ class ManualAddTests(Base):
         free, _ = self.add({"tickets": {"free": 1}, "idempotencyKey": "m2"})
         self.assertEqual((free["status"], free["paymentStatus"], free["paymentMethod"]), ("confirmed", "none", "none"))
 
-    def test_member_link_and_pricing(self):
-        reg, _ = self.add({"answers": {**ANSWERS, "email": "ignored@example.com"}, "paymentStatus": "paid"}, member=ACTIVE_MEMBER)
-        self.assertEqual((reg["totalJpy"], reg["email"], reg["memberEmail"], reg["answers"]["membershipStatus"]), (2000, "m@example.com", "m@example.com", "active"))
-
     def test_total_override_needs_a_note(self):
         with self.assertRaises(logic.RegError) as ctx:
             self.add({"totalJpy": 0})
@@ -171,8 +167,8 @@ class ManualAddTests(Base):
         wait, _ = self.add({"idempotencyKey": "d", "waitlist": True, "answers": {**ANSWERS, "email": "d@example.com"}})
         self.assertEqual((wait["status"], wait["paymentStatus"], self.store.counters["EVENT#e1"]), ("waitlisted", "none", 4))
 
-    def test_window_closed_or_members_only_does_not_block_admins(self):
-        event = {**self.store.get_event("e1"), "status": "closed", "access": {"membersOnly": True}}
+    def test_closed_window_does_not_block_admins(self):
+        event = {**self.store.get_event("e1"), "status": "closed", "access": {"guestsAllowed": False}}
         reg, _ = self.add(event=event)
         self.assertEqual(reg["status"], "pending_payment")
 
@@ -180,10 +176,6 @@ class ManualAddTests(Base):
         first, c1 = self.add({"idempotencyKey": "same"})
         again, c2 = self.add({"idempotencyKey": "same"})
         self.assertEqual((c1, c2, first["registrationId"] == again["registrationId"], self.store.counters["EVENT#e1"]), (True, False, True, 2))
-
-    def test_public_member_can_see_an_admin_added_registration(self):
-        reg, _ = self.add(member=ACTIVE_MEMBER)
-        self.assertIn(reg["registrationId"], [r["registrationId"] for r in self.store.list_for_member("m@example.com")])
 
 
 class EditTests(Base):
@@ -200,13 +192,13 @@ class EditTests(Base):
             adm.admin_edit(out, self.form, {"answers": {}}, "admin@x", NOW)
         self.assertEqual(ctx.exception.status, 400)
 
-    def test_guest_email_can_be_corrected_member_email_cannot(self):
+    def test_guest_email_can_be_corrected_account_email_cannot(self):
         guest = self.public("g", email="typo@example.com")
         out = adm.admin_edit(guest, self.form, {"revision": 1, "answers": {**guest["answers"], "email": "fixed@example.com"}}, "a", NOW)
         self.assertEqual((out["email"], out["answers"]["email"]), ("fixed@example.com", "fixed@example.com"))
-        member = self.public("m", member=ACTIVE_MEMBER)
-        out = adm.admin_edit(member, self.form, {"revision": 1, "answers": {**member["answers"], "email": "other@example.com", "membershipStatus": "none"}}, "a", NOW)
-        self.assertEqual((out["email"], out["answers"]["email"], out["answers"]["membershipStatus"]), ("m@example.com", "m@example.com", "active"))
+        member = self.public("m", account=ACCOUNT)
+        out = adm.admin_edit(member, self.form, {"revision": 1, "answers": {**member["answers"], "email": "other@example.com"}}, "a", NOW)
+        self.assertEqual((out["email"], out["answers"]["email"]), ("m@example.com", "m@example.com"))
 
     def test_validation_errors(self):
         reg = self.public("a")
@@ -292,9 +284,9 @@ class CheckInTests(Base):
         return adm.check_in(reg, token, kw.pop("event_id", "e1"), "staff@x", NOW, **kw)
 
     def test_scan_parsing(self):
-        self.assertEqual(adm.parse_scan("NKEV1.NK-AAAA-BBBB.tok_en-1"), ("NK-AAAA-BBBB", "tok_en-1"))
-        self.assertEqual(adm.parse_scan(" nk-aaaa-bbbb "), ("NK-AAAA-BBBB", None))
-        for bad in ("", None, "NKEV1.", "NKEV1.only", "NKEV1..tok"):
+        self.assertEqual(adm.parse_scan("WMFEV1.WMF-AAAA-BBBB.tok_en-1"), ("WMF-AAAA-BBBB", "tok_en-1"))
+        self.assertEqual(adm.parse_scan(" wmf-aaaa-bbbb "), ("WMF-AAAA-BBBB", None))
+        for bad in ("", None, "WMFEV1.", "WMFEV1.only", "WMFEV1..tok"):
             self.assertIsNone(adm.parse_scan(bad), bad)
 
     def test_check_in_then_already(self):
@@ -315,7 +307,6 @@ class CheckInTests(Base):
     def test_refusals(self):
         self.assertEqual(self.go(token="wrong")["result"], "not_found")
         self.assertEqual(adm.check_in(None, "x", "e1", "s", NOW)["result"], "not_found")
-        self.assertEqual(adm.check_in({**self.reg, "source": "legacy"}, self.reg["checkInToken"], "e1", "s", NOW)["result"], "not_found")
         wrong = self.go(event_id="other")
         self.assertEqual(wrong["result"], "wrong_event")
         self.assertNotIn("email", str(wrong))
@@ -382,7 +373,7 @@ class BulkTests(Base):
         out = adm.send_bulk(self.event, adm.bulk_recipients(self.regs, "active"), "Hello {name}", "Event {event_title}, id {registration_id}", send, pause=0)
         self.assertEqual((out["sent"], out["failed"]), (2, ["b@example.com"]))
         self.assertEqual(sent[0][:2], ("a@example.com", "Hello Ann"))
-        self.assertIn("Event Picnic, id NK-", sent[0][2])
+        self.assertIn("Event Picnic, id WMF-", sent[0][2])
 
 
 if __name__ == "__main__":

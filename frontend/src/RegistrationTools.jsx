@@ -22,7 +22,6 @@ export function AddRegistration({ eventId, tickets, onDone, onCancel }) {
   const [form, setForm] = useState(null);
   const [qty, setQty] = useState({});
   const [answers, setAnswers] = useState({});
-  const [memberEmail, setMemberEmail] = useState("");
   const [payment, setPayment] = useState("paid");
   const [paidVia, setPaidVia] = useState("cash");
   const [method, setMethod] = useState("bank");
@@ -46,7 +45,7 @@ export function AddRegistration({ eventId, tickets, onDone, onCancel }) {
     try {
       const res = await addRegistration(eventId, {
         tickets: Object.fromEntries(Object.entries(qty).filter(([, n]) => n > 0)), answers: withConsent,
-        memberEmail: memberEmail.trim() || undefined, paymentStatus: payment, paidVia: payment === "paid" ? paidVia : undefined,
+        paymentStatus: payment, paidVia: payment === "paid" ? paidVia : undefined,
         paymentMethod: payment === "pending" ? method : undefined, totalJpy: total === "" ? undefined : Number(total),
         adminNote: note || undefined, ignoreCapacity: mode === "ignore", waitlist: mode === "waitlist", notify, idempotencyKey: key,
       });
@@ -72,22 +71,16 @@ export function AddRegistration({ eventId, tickets, onDone, onCancel }) {
         {tickets.filter((x) => x.active !== false).map((x) => (
           <div className="field-row" key={x.ticketTypeId}>
             <div className="field">
-              <label htmlFor={`add-qty-${x.ticketTypeId}`}>{x.name} <small>({formatJpy(x.nonMemberPriceJpy)} / {formatJpy(x.memberPriceJpy)})</small></label>
+              <label htmlFor={`add-qty-${x.ticketTypeId}`}>{x.name} <small>({formatJpy(x.priceJpy)})</small></label>
               <input id={`add-qty-${x.ticketTypeId}`} type="number" min="0" value={qty[x.ticketTypeId] ?? 0}
                 onChange={(e) => setQty({ ...qty, [x.ticketTypeId]: Math.max(0, Number(e.target.value) || 0) })} />
             </div>
           </div>
         ))}
       </fieldset>
-      <div className="field">
-        <label htmlFor="add-member">{t("reg.add.memberEmail")}</label>
-        <input id="add-member" type="email" value={memberEmail} onChange={(e) => setMemberEmail(e.target.value)} />
-        <small>{t("reg.add.memberHelp")}</small>
-      </div>
       <fieldset className="ep-fieldset">
         <legend>{t("reg.add.details")}</legend>
-        <DynamicForm fields={fields} answers={memberEmail ? { ...answers } : answers} idPrefix="add" errors={answerErrors}
-          system={{ membershipStatus: memberEmail ? t("reg.add.fromMember") : "none" }}
+        <DynamicForm fields={fields} answers={answers} idPrefix="add" errors={answerErrors}
           onChange={(k, v) => setAnswers((a) => ({ ...a, [k]: v }))} />
       </fieldset>
       <div className="field ep-check">

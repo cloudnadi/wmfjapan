@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-for sub in ("lambdas", "lambdas/manage_event_platform", "lambdas/membership", "plugins/seat-upgrade/backend/lambdas", "tests"):
+for sub in ("lambdas", "lambdas/manage_event_platform", "tests"):
     sys.path.insert(0, str(ROOT / sub))
 os.environ.setdefault("REGION", "ap-northeast-1")
 
@@ -42,8 +42,6 @@ class Base(unittest.TestCase):
         self.pay.create_refund = lambda **kw: self.refunds.append(kw) or {"refundId": "rf-1", "status": "PENDING"}
         self.refunds, self.mails, self.bulk = [], [], []
         self.regs.config["payment_methods_config"] = {"methods": {"bank": {"enabled": True, "instructions": "Acct"}}}
-        self.regs.members["m@example.com"] = {"email": "m@example.com", "memberid": "M1", "npoMembershipActive": True, "fullname": "Mia"}
-        self.regs.txns["M1"] = [{"membDateFrom": "2020-11-01", "membDateTo": "2099-10-31"}]
         patches = [mock.patch.object(handler, "store", self.admin_store), mock.patch.object(handler, "regstore", self.regs),
                    mock.patch.object(handler, "square", self.pay),
                    mock.patch.object(handler.event_mailer, "send", lambda kind, reg, ev, methods: self.mails.append((kind, reg["registrationId"]))),
@@ -56,7 +54,7 @@ class Base(unittest.TestCase):
         self.event = body["event"]
         self.eid = self.event["eventId"]
         self.adult = self.call("POST", f"events/{self.eid}/tickets", TICKET)[1]["ticket"]["ticketTypeId"]
-        self.free = self.call("POST", f"events/{self.eid}/tickets", {"name": "Child", "memberPriceJpy": 0, "nonMemberPriceJpy": 0})[1]["ticket"]["ticketTypeId"]
+        self.free = self.call("POST", f"events/{self.eid}/tickets", {"name": "Child", "priceJpy": 0})[1]["ticket"]["ticketTypeId"]
 
     def call(self, *args, **kwargs):
         res = handler.lambda_handler(req(*args, **kwargs), None)
@@ -76,12 +74,6 @@ class AccessTests(Base):
             self.assertEqual(self.call(method, f"events/{self.eid}/{path}", {} if method == "POST" else None, groups="Other")[0], 403, path)
         self.assertEqual(self.call("GET", f"events/{self.eid}/dashboard", groups="EventManagers")[0], 200)
         self.assertEqual(self.call("GET", f"events/{self.eid}/registrations", groups="EventManagers")[0], 200)
-
-    def test_legacy_event_has_no_registration_tools(self):
-        mirror = event_model.legacy_event_to_v2({"eventType": "onam_2026", "eventName": "Onam", "status": "active"})
-        mirror["revision"] = 1
-        self.admin_store.events[mirror["eventId"]] = mirror
-        self.assertEqual(self.call("GET", f"events/{mirror['eventId']}/dashboard")[0], 409)
 
     def test_registration_of_another_event_is_404(self):
         reg = self.add()
@@ -106,16 +98,31 @@ class DashboardAndTableTests(Base):
         self.assertEqual({t["name"] for t in body["tickets"]}, {"Adult", "Child"})
 
 
+class PaymentSettingsTests(Base):
+    def test_super_admin_saves_and_everyone_with_access_can_read(self):
+        body = {"methods": {"bank": {"enabled": True, "instructions": " Account 123 "}, "paypay": {"enabled": True, "url": "https://pay.example/x"},
+                            "square": {"enabled": True}}}
+        status, resp = self.call("PUT", "payment-methods", {"methods": {"paypay": {"enabled": True, "url": "javascript:x"}}})
+        self.assertEqual((status, "paypay.url" in resp["fields"]), (400, True))
+        self.assertIn("square.url", self.call("PUT", "payment-methods", {"methods": {"square": {"url": "https://x.example"}}})[1]["fields"])
+        status, resp = self.call("PUT", "payment-methods", body)
+        self.assertEqual(status, 200, resp)
+        stored = self.regs.config["payment_methods_config"]["methods"]
+        self.assertEqual((stored["bank"]["instructions"], stored["square"]["url"], stored["paypay"]["enabled"]), ("Account 123", "", True))
+        self.assertEqual(self.call("GET", "payment-methods")[1]["methods"]["bank"]["enabled"], True)
+        self.assertTrue(any(a["entityKey"] == "SETTINGS#payments" for a in self.admin_store.audit))
+
+    def test_event_managers_cannot_change_where_money_goes(self):
+        self.assertEqual(self.call("PUT", "payment-methods", {"methods": {}}, groups="EventManagers")[0], 403)
+        self.assertEqual(self.call("GET", "payment-methods", groups="EventManagers")[0], 200)
+
+
 class ManualAddTests(Base):
-    def test_add_with_audit_and_member_lookup(self):
+    def test_add_with_audit(self):
         reg = self.add("a", paymentStatus="paid", paidVia="cash")
         self.assertEqual((reg["status"], reg["createdBy"], reg["addedByAdmin"]), ("confirmed", "admin@example.com", True))
         self.assertEqual(self.mails, [("confirmed", reg["registrationId"])])
         self.assertTrue(any(a["entityKey"] == f"REG#{reg['registrationId']}" and a["action"] == "create" for a in self.admin_store.audit))
-        member = self.add("m", "ignored@example.com", memberEmail="m@example.com")
-        self.assertEqual((member["email"], member["memberEmail"], member["totalJpy"]), ("m@example.com", "m@example.com", 1000))
-        status, body = self.call("POST", f"events/{self.eid}/registrations", {"tickets": {self.adult: 1}, "answers": ANSWERS, "memberEmail": "nobody@example.com"})
-        self.assertEqual((status, "memberEmail" in body["fields"]), (400, True))
 
     def test_validation_errors_are_structured(self):
         status, body = self.call("POST", f"events/{self.eid}/registrations", {"tickets": {self.adult: 1}, "answers": {**ANSWERS, "fullName": ""}})
@@ -134,7 +141,7 @@ class ActionTests(Base):
         reg = self.add("a")
         rid = reg["registrationId"]
         status, body = self.call("GET", f"events/{self.eid}/registrations/{rid}")
-        self.assertEqual((status, body["qr"].startswith("NKEV1.NK-"), body["form"]["version"]), (200, True, 1))
+        self.assertEqual((status, body["qr"].startswith("WMFEV1.WMF-"), body["form"]["version"]), (200, True, 1))
         self.assertNotIn("checkInToken", json.dumps(body["registration"]))
         status, body = self.call("PUT", f"events/{self.eid}/registrations/{rid}", {"revision": 1, "adminNote": "VIP", "answers": {**reg["answers"], "fullName": "Ann L."}})
         self.assertEqual((status, body["registration"]["fullName"], body["registration"]["revision"]), (200, "Ann L.", 2))
@@ -195,7 +202,7 @@ class CheckInApiTests(Base):
         super().setUp()
         self.reg = self.add("a", paymentStatus="paid", paidVia="cash")
         self.stored = self.regs.regs[self.reg["registrationId"]]
-        self.code = f"NKEV1.{self.reg['registrationId']}.{self.stored['checkInToken']}"
+        self.code = f"WMFEV1.{self.reg['registrationId']}.{self.stored['checkInToken']}"
 
     def scan(self, code, **kw):
         status, body = self.call("POST", f"events/{self.eid}/check-in", {"code": code, **kw})
@@ -211,7 +218,7 @@ class CheckInApiTests(Base):
         self.assertEqual(sum(1 for a in self.admin_store.audit if a["action"] == "check-in"), 3)
 
     def test_bad_codes(self):
-        for code in ("", "garbage", f"NKEV1.{self.reg['registrationId']}.wrongtoken", "NKEV1.NK-NONE-NONE.x", None):
+        for code in ("", "garbage", f"WMFEV1.{self.reg['registrationId']}.wrongtoken", "WMFEV1.WMF-NONE-NONE.x", None):
             self.assertEqual(self.scan(code)["result"], "not_found", code)
         other = self.call("POST", "events", {**BASE, "slug": "other", "title": "Other"})[1]["event"]["eventId"]
         status, body = self.call("POST", f"events/{other}/check-in", {"code": self.code})

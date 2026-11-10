@@ -1,96 +1,46 @@
-# Frontend App (React + Vite)
+# Frontend (React + Vite)
 
-This is the frontend for the Aura event registration system.
+The WMF Japan events site: <https://wmfevents.cloudnadi.com/>. Full documentation: [../docs/WMF_EVENTS_SITE.md](../docs/WMF_EVENTS_SITE.md).
 
-## Tech Stack
+## Tech stack
 
-- React 18
-- Vite 5
+React 18, Vite 5, plain JS/JSX, one global `styles.css` plus `publicEvents.css` / `site.css`. Hand-rolled router in `src/App.jsx`.
+Cognito via `@aws-sdk/client-cognito-identity-provider` (loaded on demand). Tests: Vitest + Testing Library (jsdom).
 
-## Prerequisites
-
-- Node.js 18+ (recommended)
-- npm
-
-## Install Dependencies
+## Commands
 
 ```bash
-npm install
-```
-
-## Run Locally
-
-```bash
-npm run dev
-```
-
-Vite will start a local dev server and print the local URL in terminal.
-
-## Environment Variables
-
-Create a `.env` file in this folder if you want to override the API endpoint:
-
-```bash
-VITE_API_BASE_URL=https://<your-api-id>.execute-api.<region>.amazonaws.com/prod
-```
-
-If this variable is not set, the app uses the fallback URL defined in [src/api.js](src/api.js).
-
-Registration route:
-
-- `/onam/register`
-
-## Build for Production
-
-```bash
-cp env.production.example .env.production
-npm run build
-```
-
-Production files are generated in the `dist/` folder.
-
-This uses `.env.production` values (for example, API stage `/prod`) and outputs the build to `dist/`.
-
-## Build for Preview Environment
-
-Use a dedicated preview env file and Vite mode:
-
-```bash
-cp env.preview.example .env.preview
+npm ci               # install
+cp .env.example .env.local
+npm run dev          # local dev server
+npm test             # run the tests once  (npm run test:watch to watch)
+npm run build        # production bundle in dist/
 npm run build:preview
 ```
 
-This uses `.env.preview` values (for example, API stage `/preview`) and outputs the build to `dist/`.
+## Layout
 
-## Preview Production Build Locally
+- `src/siteConfig.js` organisation/branding settings (all `VITE_*` overridable)
+- `src/eventsApi.js` public event-platform client; `src/eventModel.js` event data model, defaults and derived state
+- `src/auth/` attendee sign-in: Cognito email flows, social sign-in with PKCE, session, redirect allow-list
+- `src/HomePage.jsx`, `EventsList.jsx`, `EventPage.jsx`, `EventRegister.jsx`, `EventRegistered.jsx`, `MyEventRegistrations.jsx`, `SignInPage.jsx`
+- `src/locales/en.json` strings (`ja.json` is registered and empty: missing keys fall back to English)
+- `src/__tests__/` tests and neutral fixtures (no real events, people or credentials)
 
-```bash
-npm run preview
-```
+## Configuration
 
-## Deploy to Amazon S3 (Static Hosting)
+Copy `.env.example` (development), `env.preview.example` or `env.production.example` and fill in the placeholders. Everything in a
+`VITE_*` variable is public. Deployment sets them from Terraform outputs (see the deploy workflows).
 
-1. Build the app:
-
-```bash
-npm run build
-```
-
-1. Upload the contents of `dist/` to your S3 bucket.
-
-Example using AWS CLI:
+## Build and deploy
 
 ```bash
-aws s3 sync dist/ s3://<your-bucket-name> --delete
+cp env.production.example .env.production   # fill in from the production Terraform outputs
+npm run build                                # → dist/
+npm run preview                              # serve the production build locally
 ```
 
-1. Ensure bucket static website hosting is enabled and correct bucket policy is applied.
+Preview environment: `cp env.preview.example .env.preview && npm run build:preview`.
 
-1. Optional: Put CloudFront in front of S3 for HTTPS and better caching.
-
-## Scripts
-
-- `npm run dev` - Start development server
-- `npm run build` - Create production build
-- `npm run build:preview` - Create a build using `.env.preview`
-- `npm run preview` - Preview production build locally
+Hosting is S3 + CloudFront, deployed by the GitHub Actions workflows (`scripts/deploy_frontend.sh` syncs `dist/` and invalidates
+CloudFront). To upload by hand: `aws s3 sync dist/ s3://<bucket> --delete` then invalidate the distribution.

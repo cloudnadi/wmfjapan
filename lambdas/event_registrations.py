@@ -17,6 +17,8 @@ import secrets
 from datetime import timedelta
 from typing import Optional
 
+import event_addons
+import event_capabilities
 import event_model
 import event_pricing
 import form_engine
@@ -41,6 +43,13 @@ class RegError(Exception):
         self.status, self.message, self.fields, self.code = status, message, fields or {}, code
 
 
+def counter_scope(key: str) -> str:
+    """Which limit a counter key belongs to: the whole event, one ticket type, or an add-on (slot/upgrade/seat)."""
+    if str(key).startswith("EVENT#"):
+        return "event"
+    return "addon" if event_addons.is_addon_key(key) else "ticket"
+
+
 class CapacityFull(Exception):
     def __init__(self, scope, key=""):
         super().__init__(scope)
@@ -59,6 +68,22 @@ class StateConflict(Exception):
 
 PAYMENT_CONFIG_KEY = "payment_methods_config"
 PAYMENT_LABELS = {"square": "Credit / Debit Card", "paypay": "PayPay", "bank": "Bank Transfer"}
+
+
+def normalize_payment_config(raw) -> dict:
+    """Validate the admin's payment-method settings; returns the clean {"methods": {...}} or raises RegError."""
+    methods_in = raw.get("methods") if isinstance(raw, dict) and isinstance(raw.get("methods"), dict) else {}
+    methods, errors = {}, {}
+    for key in PAYMENT_LABELS:
+        entry = methods_in.get(key) if isinstance(methods_in.get(key), dict) else {}
+        url = str(entry.get("url", "")).strip()
+        if url and (key == "square" or not url.startswith(("http://", "https://"))):
+            errors[f"{key}.url"] = "Use an http:// or https:// link" if key != "square" else "Card payments use Square checkout; no link needed"
+        methods[key] = {"enabled": entry.get("enabled") is True, "url": url if key != "square" else "",
+                        "instructions": str(entry.get("instructions", "")).strip()[:2000]}
+    if errors:
+        raise RegError(400, "Please check the payment settings", errors)
+    return {"methods": methods}
 
 
 def available_payment_methods(store_, square_module=None) -> dict:
@@ -80,10 +105,10 @@ def available_payment_methods(store_, square_module=None) -> dict:
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def make_registration_id(event_id: str, email: str, key: str, salt: int = 0) -> str:
-    """Readable ID like NK-7QX2-M9PA; deterministic per (event, email, idempotency key)."""
+    """Readable ID like WMF-7QX2-M9PA; deterministic per (event, email, idempotency key)."""
     number = int.from_bytes(hashlib.sha256(f"{event_id}|{email}|{key}|{salt}".encode()).digest()[:5], "big")
     chars = "".join(CROCKFORD[(number >> (5 * i)) & 31] for i in range(8))
-    return f"NK-{chars[:4]}-{chars[4:]}"
+    return f"WMF-{chars[:4]}-{chars[4:]}"
 
 
 def new_check_in_token() -> str:
@@ -95,7 +120,7 @@ def release_ops(reg: dict) -> list:
     event_id = reg["eventId"]
     ops = [(f"EVENT#{event_id}", int(reg.get("seats", 0)))]
     ops += [(f"TICKET#{event_id}#{l['ticketTypeId']}", int(l["qty"])) for l in reg.get("tickets", [])]
-    return ops
+    return ops + event_addons.release_ops(reg)
 
 
 def _tell(kind, reg, event):
@@ -113,33 +138,20 @@ def public_registration(reg: dict) -> dict:
     return {k: v for k, v in reg.items() if k not in hidden}
 
 
-def member_context(member: Optional[dict]) -> dict:
-    """Server-side facts that fill the system fields of the form."""
-    if not member or not member.get("loggedIn"):
-        return {"membershipStatus": "none"}
-    summary = member.get("summary") or {}
-    status = event_model.membership_status({**summary, "latestTo": summary.get("latestTo", "")})
-    ctx = {"email": member["email"], "memberId": member.get("memberId", ""), "membershipStatus": status}
-    if status != "none":
-        ctx["membershipType"] = "NPO member"
-        ctx["membershipExpiry"] = summary.get("latestTo", "")
-    return ctx
+def account_context(account: Optional[dict]) -> dict:
+    """Server-side facts that fill the system/profile fields of the form (the signed-in account's e-mail)."""
+    return {"email": account["email"]} if account else {}
 
 
-def check_registrable(event: dict, member: Optional[dict], now) -> None:
+def check_registrable(event: dict, account: Optional[dict], now) -> None:
     window = event_pricing.registration_window(event, now)
     if window == event_pricing.WINDOW_NOT_OPEN:
         raise RegError(409, "Registration has not opened yet", code="not_open")
     if window == event_pricing.WINDOW_CLOSED:
         raise RegError(409, "Registration is closed", code="closed")
-    decision = event_pricing.access_decision(event, member)
+    decision = event_pricing.access_decision(event, bool(account))
     if not decision["allowed"]:
-        messages = {
-            "login_required": "Please sign in to register for this event",
-            "members_only": "This event is for members with an active NPO membership",
-            "renewal_required": "Please renew your NPO membership to register for this event",
-        }
-        raise RegError(403, messages[decision["reason"]], code=decision["reason"])
+        raise RegError(403, "Please sign in to register for this event", code=decision["reason"])
 
 
 def choose_payment_method(total: int, requested, methods: dict) -> str:
@@ -156,14 +168,21 @@ def hold_until(method: str, now) -> str:
 
 # ── create ────────────────────────────────────────────────────────────────────
 
-def register(*, event, tickets, form, body, member, methods, now, redirect_base="") -> tuple:
+def register(*, event, tickets, form, body, account, methods, now, redirect_base="") -> tuple:
     """Create a registration. Returns (registration, created) — created is False for an idempotent replay."""
-    check_registrable(event, member, now)
-    eligible = event_pricing.is_member_price_eligible(member)
-    lines, total, errors = event_pricing.quote(tickets, body.get("tickets"), eligible, now)
+    check_registrable(event, account, now)
+    unavailable = event_capabilities.reject_unavailable_addons(event, body)
+    if unavailable:                       # UI hiding is not enough: the API refuses options the event does not offer
+        raise RegError(400, "Some options are not available for this event", unavailable, code="feature_disabled")
+    lines, ticket_total, errors = event_pricing.quote(tickets, body.get("tickets"), now)
     if errors:
         raise RegError(400, "Please check your tickets", errors)
-    clean, answer_errors = form_engine.validate_submission(form, body.get("answers"), member_context(member))
+    seats = sum(l["qty"] for l in lines)
+    addon_record, addon_jpy, addon_ops, addon_errors = event_addons.resolve(event, body, seats)
+    if addon_errors:
+        raise RegError(400, "Please check your add-ons", addon_errors, code="addons_invalid")
+    total = ticket_total + addon_jpy
+    clean, answer_errors = form_engine.validate_submission(form, body.get("answers"), account_context(account))
     if answer_errors:
         raise RegError(400, "Please check the highlighted answers", answer_errors)
     method = choose_payment_method(total, body.get("paymentMethod"), methods)
@@ -176,8 +195,7 @@ def register(*, event, tickets, form, body, member, methods, now, redirect_base=
                            code="too_many_unpaid")
     key = str(body.get("idempotencyKey") or secrets.token_hex(8))[:64]
     lines_limited = event_pricing.attach_limits(lines, tickets)
-    ops = event_pricing.seat_ops(event, lines_limited)
-    seats = sum(l["qty"] for l in lines)
+    ops = event_pricing.seat_ops(event, lines_limited) + addon_ops
     stamp = now.isoformat(timespec="seconds")
 
     for salt in range(4):
@@ -188,24 +206,27 @@ def register(*, event, tickets, form, body, member, methods, now, redirect_base=
             "phone": clean.get("phone", ""), "answers": clean, "formId": form["formId"],
             "formVersion": int(form["version"]), "formHash": form["schemaHash"],
             "tickets": [{k: v for k, v in l.items() if k != "limit"} for l in lines_limited],
-            "seats": seats, "totalJpy": total, "paymentMethod": method,
+            "seats": seats, "ticketsJpy": ticket_total, "addonJpy": addon_jpy, "totalJpy": total, "paymentMethod": method,
             "paymentStatus": "pending" if total else "none", "status": "confirmed",
-            "checkInToken": new_check_in_token(), "revision": 1, "source": "native",
+            "checkInToken": new_check_in_token(), "revision": 1,
             "consentedAt": stamp, "createdAt": stamp, "updatedAt": stamp,
         }
-        if member and member.get("loggedIn"):
-            reg["memberEmail"] = member["email"]
-            if member.get("memberId"):
-                reg["memberId"] = member["memberId"]
+        if addon_record:
+            reg["addons"] = addon_record
+            reg["addonOps"] = [[k, n] for k, n, _ in addon_ops]
+        if account:
+            reg["accountEmail"] = account["email"]
+            if account.get("sub"):
+                reg["accountSub"] = account["sub"]          # Cognito subject; guests never get one
         if total:
             reg["status"] = "pending_payment"
             reg["holdUntil"] = hold_until(method, now)
         try:
             try:
                 store.reserve_and_create(reg, ops)
-            except CapacityFull:
-                if not event.get("waitlistEnabled"):
-                    raise
+            except CapacityFull as full:
+                if full.scope == "addon" or not event.get("waitlistEnabled"):
+                    raise                           # a taken seat/slot is not a reason to waitlist
                 reg.update({"status": "waitlisted", "paymentMethod": "none", "paymentStatus": "none"})
                 reg.pop("holdUntil", None)
                 reg["waitlistedFor"] = method
@@ -217,6 +238,10 @@ def register(*, event, tickets, form, body, member, methods, now, redirect_base=
                 return existing, False          # same request sent twice
             continue                              # an ID collision with someone else: try the next salt
         except CapacityFull as full:
+            if full.scope == "addon":
+                kind = {"SLOT": "entrySlots", "UPGRADE": "zoneUpgrade", "SEAT": "seatReservation"}[full.key.split("#", 1)[0]]
+                raise RegError(409, "Something you chose was just taken. Please choose again.",
+                               {f"addons.{kind}": "No longer available"}, code="addon_unavailable")
             raise RegError(409, "Sorry, this event is full" if full.scope == "event"
                            else "Sorry, that ticket type is sold out", code="sold_out")
     else:
@@ -341,6 +366,7 @@ def mark_paid(reg: dict, *, via: str, reference: str, now, event: Optional[dict]
         ops = [(k, n, None) for k, n in release_ops(reg)]
         if event:
             ops = event_pricing.seat_ops(event, event_pricing.attach_limits(reg["tickets"], store.get_tickets(reg["eventId"])))
+            ops += event_addons.ops_for_record(event, reg)
         try:
             return store.reserve_existing(reg["registrationId"], "cancelled", {**paid, "status": "confirmed"}, ops,
                                           remove=["holdUntil", "cancelledAt", "cancelledBy", "cancelReason"])
@@ -355,7 +381,7 @@ def promote(reg: dict, event: dict, tickets: list, *, now, actor: str) -> dict:
     """Move a waitlisted registration into the event if seats are free (admin action)."""
     if reg["status"] != "waitlisted":
         raise RegError(409, "Only waitlisted registrations can be promoted")
-    ops = event_pricing.seat_ops(event, event_pricing.attach_limits(reg["tickets"], tickets))
+    ops = event_pricing.seat_ops(event, event_pricing.attach_limits(reg["tickets"], tickets)) + event_addons.ops_for_record(event, reg)
     stamp = now.isoformat(timespec="seconds")
     paid_event = reg["totalJpy"] > 0
     updates = {"status": "pending_payment" if paid_event else "confirmed", "promotedAt": stamp, "promotedBy": actor,
@@ -366,21 +392,21 @@ def promote(reg: dict, event: dict, tickets: list, *, now, actor: str) -> dict:
     try:
         updated = store.reserve_existing(reg["registrationId"], "waitlisted", updates, ops, remove=[])
     except CapacityFull:
-        raise RegError(409, "There are not enough free seats for this registration yet", code="sold_out")
+        raise RegError(409, "There are not enough free places for this registration yet", code="sold_out")
     except StateConflict:
         raise RegError(409, "This registration changed in the meantime. Reload and try again.")
     _tell("promoted", updated, event)
     return updated
 
 
-# ── member self-service ───────────────────────────────────────────────────────
+# ── self-service ───────────────────────────────────────────────────────
 
-def _owned_by(reg: dict, member: Optional[dict]) -> bool:
-    return bool(member and member.get("loggedIn") and reg.get("memberEmail") == member["email"])
+def _owned_by(reg: dict, account: Optional[dict]) -> bool:
+    return bool(account and reg.get("accountEmail") == account["email"])
 
 
-def self_service_check(reg: Optional[dict], event: Optional[dict], member: Optional[dict], now) -> None:
-    if not reg or not _owned_by(reg, member):
+def self_service_check(reg: Optional[dict], event: Optional[dict], account: Optional[dict], now) -> None:
+    if not reg or not _owned_by(reg, account):
         raise RegError(404, "Registration not found")           # same answer for "not yours" and "missing"
     if reg["status"] not in HOLDING + ("waitlisted",):
         raise RegError(409, "This registration can no longer be changed")
@@ -388,21 +414,18 @@ def self_service_check(reg: Optional[dict], event: Optional[dict], member: Optio
         raise RegError(409, "Registration has closed, so this can only be changed by an organiser", code="closed")
 
 
-def member_cancel(reg, event, member, now) -> dict:
-    self_service_check(reg, event, member, now)
+def account_cancel(reg, event, account, now) -> dict:
+    self_service_check(reg, event, account, now)
     try:
-        return cancel(reg, by=member["email"], reason="member_cancelled", now=now, event=event)
+        return cancel(reg, by=account["email"], reason="member_cancelled", now=now, event=event)
     except StateConflict:
         raise RegError(409, "This registration changed in the meantime. Reload and try again.")
 
 
-def member_edit(reg, event, form_version, answers, member, now) -> dict:
-    """Edit answers only (tickets and price are fixed). Validated against the form version the member registered with."""
-    self_service_check(reg, event, member, now)
-    context = {k: reg["answers"][k] for k in ("membershipId", "membershipStatus", "membershipType", "membershipExpiry")
-               if k in reg["answers"]}
-    context.update({"email": reg["email"], "memberId": reg.get("memberId", "")})
-    clean, errors = form_engine.validate_submission(form_version, answers, context)
+def account_edit(reg, event, form_version, answers, account, now) -> dict:
+    """Edit answers only (tickets, add-ons and price are fixed). Validated against the form version the attendee registered with."""
+    self_service_check(reg, event, account, now)
+    clean, errors = form_engine.validate_submission(form_version, answers, {"email": reg["email"]})
     if errors:
         raise RegError(400, "Please check the highlighted answers", errors)
     updates = {"answers": clean, "fullName": clean.get("fullName", reg.get("fullName", "")),

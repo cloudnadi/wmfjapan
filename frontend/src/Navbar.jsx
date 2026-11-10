@@ -1,116 +1,90 @@
 import { useEffect, useRef, useState } from "react";
-import { useTheme } from "./theme";
-import { getMembershipStatus } from "./api";
-import {
-  clearRegistrantSession,
-  getRegistrantEmail,
-  isRegistrantAuthenticated,
-  onRegistrantSessionChange,
-} from "./registrantAuth";
+import { useAuthSession } from "./auth/useAuth";
+import { signOut } from "./auth/session";
+import { t } from "./i18n";
+import "./site.css";
+import { siteConfig } from "./siteConfig";
 
 const HOME_PATH = "/";
-const MEMBER_PROFILE_PATH = "/member/profile";
-const MEMBER_MEMBERSHIP_PATH = "/member/membership";
-const MY_REGISTRATIONS_PATH = "/my/registrations";
-const SPONSORS_PATH = "/sponsors";
 const EVENTS_PATH = "/events";
 const MY_EVENTS_PATH = "/my/events";
+const SIGN_IN_PATH = "/signin";
 const ADMIN_PATH = "/admin";
 
-// "Hello, <name>" dropdown for a signed-in member. The name comes from the
-// membership profile; until it loads (or if it fails) we fall back to the email.
+// Account dropdown for a signed-in attendee. The name falls back to the email address.
 function UserMenu({ navigateTo }) {
+  const { session } = useAuthSession();
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState(() => getRegistrantEmail() || "");
-  const [authed, setAuthed] = useState(() => isRegistrantAuthenticated());
   const ref = useRef(null);
-
-  useEffect(
-    () =>
-      onRegistrantSessionChange(() => {
-        setAuthed(isRegistrantAuthenticated());
-        setEmail(getRegistrantEmail() || "");
-        setName("");
-      }),
-    []
-  );
-
-  useEffect(() => {
-    if (!authed) return undefined;
-    let cancelled = false;
-    getMembershipStatus()
-      .then((status) => {
-        if (!cancelled) setName(status?.profile?.fullName || status?.memberName || "");
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [authed, email]);
+  const triggerRef = useRef(null);
 
   useEffect(() => {
     if (!open) return undefined;
     const close = (event) => {
       if (ref.current && !ref.current.contains(event.target)) setOpen(false);
     };
+    const onKey = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
-  if (!authed) return null;
+  if (!session) return null;
 
   const go = (path) => {
     setOpen(false);
     navigateTo(path);
   };
-  const displayName = name || email.split("@")[0] || "Member";
+  const displayName = session.name || session.email.split("@")[0] || t("site.nav.account");
   const initials =
     displayName
       .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
       .map((part) => part[0].toUpperCase())
-      .join("") || "M";
+      .join("") || "A";
   const items = [
-    { label: "Member Profile", onClick: () => go(MEMBER_PROFILE_PATH) },
-    { label: "WMF Japan Foundation Membership", onClick: () => go(MEMBER_MEMBERSHIP_PATH) },
-    { label: "Registrations", onClick: () => go(MY_REGISTRATIONS_PATH) },
-    { label: "My event registrations", onClick: () => go(MY_EVENTS_PATH) },
+    { label: t("site.nav.myEvents"), onClick: () => go(MY_EVENTS_PATH) },
     {
-      label: "Log Out",
-      onClick: () => {
+      label: t("site.nav.signOut"),
+      onClick: async () => {
         setOpen(false);
-        clearRegistrantSession();
-        navigateTo(HOME_PATH);
+        const { hostedLogoutUrl } = await signOut();
+        if (hostedLogoutUrl) window.location.assign(hostedLogoutUrl);
+        else navigateTo(HOME_PATH);
       },
     },
   ];
 
   return (
-    <div className="nk-user" ref={ref}>
+    <div className="wmf-user" ref={ref}>
       <button
         type="button"
-        className="nk-user-trigger"
+        className="wmf-user-trigger"
+        ref={triggerRef}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label={`${t("site.nav.account")}: ${displayName}`}
         onClick={() => setOpen((prev) => !prev)}
       >
-        <span aria-hidden="true">👤</span> <span className="nk-user-name">{displayName}</span>
+        <span aria-hidden="true">👤</span> <span className="wmf-user-name">{displayName}</span>
       </button>
       {open ? (
-        <div className="nk-user-menu" role="menu">
-          <div className="nk-user-head">
-            <div className="nk-user-hello">
-              Hello,
-              <strong>{displayName}</strong>
-            </div>
-            <div className="nk-user-avatar" aria-hidden="true">
-              {initials}
-            </div>
+        <div className="wmf-user-menu" role="menu">
+          <div className="wmf-user-head">
+            <div className="wmf-user-hello">{t("auth.signedInAs", { email: session.email })}</div>
+            <div className="wmf-user-avatar" aria-hidden="true">{initials}</div>
           </div>
           {items.map((item) => (
-            <button key={item.label} type="button" role="menuitem" className="nk-user-item" onClick={item.onClick}>
+            <button key={item.label} type="button" role="menuitem" className="wmf-user-item" onClick={item.onClick}>
               {item.label}
             </button>
           ))}
@@ -121,35 +95,28 @@ function UserMenu({ navigateTo }) {
 }
 
 /**
- * Fixed top navigation matching beta.wmfjapan.com:
- * logo on the left, inline links, a moon/sun theme toggle switch, and an
- * amber primary action on the right. Collapses to a hamburger on mobile.
+ * Fixed top navigation: logo, links, the organisation's own site and the account menu.
+ * Collapses to a hamburger on small screens. The admin screens (showUserMenu={false}) pass their own links.
  */
-export default function Navbar({ navigateTo, brand = "WMF Japan", links, primaryAction, showUserMenu = true }) {
-  const { theme, toggleTheme } = useTheme();
+export default function Navbar({ navigateTo, brand = siteConfig.name, links, primaryAction, showUserMenu = true }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [authed, setAuthed] = useState(() => isRegistrantAuthenticated());
-  useEffect(() => onRegistrantSessionChange(() => setAuthed(isRegistrantAuthenticated())), []);
+  const { session } = useAuthSession();
+  const authed = !!session;
 
-  // One menu for the whole public site: Login / Register first (signed-in
-  // members get the account dropdown instead), then Sponsors and Contact.
-  // The admin screens (showUserMenu={false}) pass their own.
+  const goSignIn = () => {
+    const here = `${window.location.pathname}${window.location.search}`;
+    navigateTo(here.startsWith("/events") || here.startsWith("/my/events") ? `${SIGN_IN_PATH}?returnTo=${encodeURIComponent(here)}` : SIGN_IN_PATH);
+  };
+
   const menuLinks =
     showUserMenu === false
       ? links || []
       : [
-          ...(authed
-            ? []
-            : [{ label: "Login / Register", cta: true, onClick: () => navigateTo(MEMBER_PROFILE_PATH) }]),
-          { label: "Events", onClick: () => navigateTo(EVENTS_PATH) },
-          { label: "Sponsors", onClick: () => navigateTo(SPONSORS_PATH) },
-          {
-            label: "Contact",
-            onClick: () => {
-              window.location.href = "mailto:info@wmfjapan.com";
-            },
-          },
-          { label: "Admin Login", onClick: () => navigateTo(ADMIN_PATH), mobileOnly: true },
+          ...(authed ? [] : [{ label: t("site.nav.signIn"), cta: true, onClick: goSignIn }]),
+          { label: t("site.nav.events"), onClick: () => navigateTo(EVENTS_PATH) },
+          { label: t("site.orgLink", { org: siteConfig.orgName }), href: siteConfig.orgUrl, external: true },
+          ...(siteConfig.contactEmail ? [{ label: t("site.footer.contact"), href: `mailto:${siteConfig.contactEmail}` }] : []),
+          { label: t("site.footer.adminLogin"), onClick: () => navigateTo(ADMIN_PATH), mobileOnly: true },
         ];
 
   const handleLinkClick = (onClick) => {
@@ -160,31 +127,48 @@ export default function Navbar({ navigateTo, brand = "WMF Japan", links, primary
   };
 
   return (
-    <nav className="nk-nav">
-      <div className="nk-nav-inner">
+    <nav className="wmf-nav" aria-label={t("site.nav.primary")}>
+      <a className="skip-link" href="#top">{t("site.skipToContent")}</a>
+      <div className="wmf-nav-inner">
         <button
           type="button"
-          className="nk-nav-logo"
+          className="wmf-nav-logo"
+          aria-label={brand}
           onClick={() => handleLinkClick(() => navigateTo(HOME_PATH))}
         >
-          <img src="/logo-sm.png" width="110" height="60" alt={`${brand} logo`} />
+          {siteConfig.logo.src ? (
+            <img src={siteConfig.logo.src} height="48" alt={siteConfig.logo.alt} />
+          ) : (
+            <span className="wmf-nav-wordmark">{siteConfig.name}</span>
+          )}
         </button>
 
-        <div className={`nk-nav-links ${menuOpen ? "open" : ""}`}>
-          {menuLinks.map((link) => (
-            <button
-              key={link.label}
-              type="button"
-              className={link.cta ? "nk-nav-cta" : `nk-nav-link${link.mobileOnly ? " nk-nav-link--mobile-only" : ""}`}
-              onClick={() => handleLinkClick(link.onClick)}
-            >
-              {link.label}
-            </button>
-          ))}
+        <div id="wmf-nav-links" className={`wmf-nav-links ${menuOpen ? "open" : ""}`}>
+          {menuLinks.map((link) =>
+            link.href ? (
+              <a
+                key={link.label}
+                className={`wmf-nav-link${link.mobileOnly ? " wmf-nav-link--mobile-only" : ""}`}
+                href={link.href}
+                {...(link.external ? { target: "_blank", rel: "noopener noreferrer", "aria-label": t("site.orgLinkAria", { org: siteConfig.orgName }) } : {})}
+              >
+                {link.label}
+              </a>
+            ) : (
+              <button
+                key={link.label}
+                type="button"
+                className={link.cta ? "wmf-nav-cta" : `wmf-nav-link${link.mobileOnly ? " wmf-nav-link--mobile-only" : ""}`}
+                onClick={() => handleLinkClick(link.onClick)}
+              >
+                {link.label}
+              </button>
+            )
+          )}
           {primaryAction ? (
             <button
               type="button"
-              className="nk-nav-cta"
+              className="wmf-nav-cta"
               onClick={() => handleLinkClick(primaryAction.onClick)}
             >
               {primaryAction.label}
@@ -192,27 +176,14 @@ export default function Navbar({ navigateTo, brand = "WMF Japan", links, primary
           ) : null}
         </div>
 
-        <div className="nk-nav-actions">
+        <div className="wmf-nav-actions">
           {showUserMenu ? <UserMenu navigateTo={navigateTo} /> : null}
           <button
             type="button"
-            className="nk-theme-toggle"
-            onClick={toggleTheme}
-            aria-label="Toggle theme"
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            <span className="nk-theme-icon" aria-hidden="true">🌙</span>
-            <span className={`nk-theme-track ${theme === "light" ? "light" : ""}`}>
-              <span className="nk-theme-knob" />
-            </span>
-            <span className="nk-theme-icon" aria-hidden="true">☀️</span>
-          </button>
-
-          <button
-            type="button"
-            className="nk-menu-toggle"
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            className="wmf-menu-toggle"
+            aria-label={menuOpen ? t("site.nav.menuClose") : t("site.nav.menuOpen")}
             aria-expanded={menuOpen}
+            aria-controls="wmf-nav-links"
             onClick={() => setMenuOpen((prev) => !prev)}
           >
             {menuOpen ? "✕" : "☰"}

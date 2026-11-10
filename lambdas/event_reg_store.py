@@ -24,8 +24,6 @@ TICKETS_TABLE = os.environ.get("EVENT_TICKET_TYPES_TABLE", "")
 FORMS_TABLE = os.environ.get("FORM_SCHEMAS_TABLE", "")
 REGISTRATIONS_TABLE = os.environ.get("EVENT_REGISTRATIONS_TABLE", "")
 COUNTERS_TABLE = os.environ.get("EVENT_COUNTERS_TABLE", "")
-MEMBERS_TABLE = os.environ.get("MEMBERS_TABLE", "")
-MEMBERSHIP_TABLE = os.environ.get("MEMBERSHIP_TABLE", "")
 SITE_CONFIG_TABLE = os.environ.get("SITE_CONFIG_TABLE", "")
 SLUG_PREFIX = "SLUG#"
 
@@ -98,19 +96,7 @@ def get_counters(keys: list) -> dict:
     return out
 
 
-# ── membership / site config ──────────────────────────────────────────────────
-
-def get_member(email: str) -> Optional[dict]:
-    if not MEMBERS_TABLE or not email:
-        return None
-    return _t(MEMBERS_TABLE).get_item(Key={"email": email}).get("Item")
-
-
-def get_membership_transactions(memberid: str) -> list:
-    if not MEMBERSHIP_TABLE or not memberid:
-        return []
-    return _query(_t(MEMBERSHIP_TABLE), KeyConditionExpression=Key("memberid").eq(str(memberid)))
-
+# ── site config (payment methods) ─────────────────────────────────────────────
 
 def get_site_config(key: str) -> dict:
     if not SITE_CONFIG_TABLE:
@@ -121,6 +107,10 @@ def get_site_config(key: str) -> dict:
         return parsed if isinstance(parsed, dict) else {}
     except (ClientError, TypeError, ValueError):
         return {}
+
+
+def put_site_config(key: str, value: dict) -> None:
+    _t(SITE_CONFIG_TABLE).put_item(Item={"configKey": key, "value": json.dumps(value)})
 
 
 # ── registrations ─────────────────────────────────────────────────────────────
@@ -141,15 +131,14 @@ def list_for_event(event_id: str) -> list:
 
 
 def list_by_email(email: str) -> list:
-    """Every native registration made with this address (any event)."""
+    """Every registration made with this address (any event)."""
+    return _query(_t(REGISTRATIONS_TABLE), IndexName="EmailIndex", KeyConditionExpression=Key("email").eq(email))
+
+
+def list_for_account(email: str) -> list:
+    """Registrations made while signed in with this account's address."""
     return _query(_t(REGISTRATIONS_TABLE), IndexName="EmailIndex", KeyConditionExpression=Key("email").eq(email),
-                  FilterExpression=Attr("source").eq("native"))
-
-
-def list_for_member(email: str) -> list:
-    items = _query(_t(REGISTRATIONS_TABLE), IndexName="EmailIndex", KeyConditionExpression=Key("email").eq(email),
-                   FilterExpression=Attr("memberEmail").eq(email) & Attr("source").eq("native"), ScanIndexForward=False)
-    return items
+                  FilterExpression=Attr("accountEmail").eq(email), ScanIndexForward=False)
 
 
 def list_expired_holds(iso_now: str) -> list:
@@ -173,7 +162,7 @@ def _counter_update(key: str, amount: int, limit, *, release: bool = False) -> d
 def _check_fits(ops: list) -> None:
     for key, amount, limit in ops:
         if limit is not None and amount > limit:
-            raise logic.CapacityFull("event" if key.startswith("EVENT#") else "ticket", key)
+            raise logic.CapacityFull(logic.counter_scope(key), key)
 
 
 def _transact(ops: list, *, counters: list, first: str) -> None:
@@ -191,7 +180,7 @@ def _transact(ops: list, *, counters: list, first: str) -> None:
             raise (logic.AlreadyExists() if first == "create" else logic.StateConflict()) from exc
         for (key, _, _), reason in zip(counters, reasons[1:]):
             if reason.get("Code") == "ConditionalCheckFailed":
-                raise logic.CapacityFull("event" if key.startswith("EVENT#") else "ticket", key) from exc
+                raise logic.CapacityFull(logic.counter_scope(key), key) from exc
         raise
 
 
