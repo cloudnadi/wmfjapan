@@ -26,8 +26,7 @@ def f(key, ftype="text", **kw):
 
 CORE_OK = {"fullName": "Ann Lee", "email": "ann@example.com", "phone": "+81 90-1234-5678",
            "consentPrivacy": True, "consentTerms": True}
-CTX = {"email": "member@example.com", "memberId": "M123", "membershipStatus": "active",
-       "membershipType": "Individual", "membershipExpiry": "2027-03-31"}
+CTX = {"email": "member@example.com"}
 
 
 def run(s, answers, ctx=None, core=True):
@@ -38,20 +37,12 @@ class CoreFieldTests(unittest.TestCase):
     def test_minimal_valid_guest(self):
         clean, errors = run(schema(), {})
         self.assertEqual(errors, {})
-        self.assertEqual(clean["membershipStatus"], "none")
         self.assertEqual(clean["email"], "ann@example.com")
 
-    def test_system_fields_come_from_context_not_client(self):
-        clean, errors = run(schema(), {"membershipId": "HACK", "membershipStatus": "active", "membershipType": "Gold"}, CTX)
-        self.assertEqual(errors, {})
-        self.assertEqual((clean["membershipId"], clean["membershipStatus"], clean["membershipType"]),
-                         ("M123", "active", "Individual"))
-
-    def test_guest_cannot_claim_membership(self):
-        clean, _ = run(schema(), {"membershipId": "M999", "membershipStatus": "active", "membershipExpiry": "2099-01-01"})
-        self.assertEqual(clean["membershipStatus"], "none")
+    def test_unknown_membership_style_answers_are_dropped(self):
+        clean, _ = run(schema(), {"membershipId": "M999", "membershipStatus": "active"})
         self.assertNotIn("membershipId", clean)
-        self.assertNotIn("membershipExpiry", clean)
+        self.assertNotIn("membershipStatus", clean)
 
     def test_logged_in_email_is_forced_from_account(self):
         clean, errors = run(schema(), {"email": "other@example.com"}, CTX)

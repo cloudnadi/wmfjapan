@@ -8,14 +8,14 @@ from datetime import timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-for sub in ("lambdas", "lambdas/membership", "plugins/seat-upgrade/backend/lambdas", "lambdas/manage_event_platform", "tests"):
+for sub in ("lambdas", "plugins/seat-upgrade/backend/lambdas", "lambdas/manage_event_platform", "tests"):
     sys.path.insert(0, str(ROOT / sub))
 
 import event_model as m  # noqa: E402
 import event_registration_admin as adm  # noqa: E402
 import event_registrations as logic  # noqa: E402
 import form_engine as fe  # noqa: E402
-from event_fakes import ACTIVE_MEMBER, ADULT, ANSWERS, FREE, NOW, FakePayments, FakeStore  # noqa: E402
+from event_fakes import ACCOUNT, ADULT, ANSWERS, FREE, NOW, FakePayments, FakeStore  # noqa: E402
 import test_event_platform_public as P  # noqa: E402  (loads the public / webhook / expiry handlers)
 
 METHODS = {"square": {}, "bank": {}, "paypay": {}}
@@ -138,7 +138,7 @@ class Base(unittest.TestCase):
     def reg(self, key, email="ann@example.com", tickets=None, method="bank", event=None, now=NOW):
         return logic.register(event=event or self.store.get_event("e1"), tickets=self.store.get_tickets("e1"), form=self.form,
                               body={"tickets": tickets or {"adult": 1}, "answers": {**ANSWERS, "email": email}, "paymentMethod": method,
-                                    "idempotencyKey": key}, member=None, methods=METHODS, now=now)[0]
+                                    "idempotencyKey": key}, account=None, methods=METHODS, now=now)[0]
 
 
 class SeatHoardingTests(Base):
@@ -169,13 +169,13 @@ class SeatHoardingTests(Base):
             self.reg(f"x{i}", email="busy@example.com")
         reg = logic.register(event=other, tickets=self.store.get_tickets("e2"), form=self.form,
                              body={"tickets": {"adult": 1}, "answers": {**ANSWERS, "email": "busy@example.com"}, "paymentMethod": "bank"},
-                             member=None, methods=METHODS, now=NOW)[0]
+                             account=None, methods=METHODS, now=NOW)[0]
         self.assertEqual(reg["status"], "pending_payment")
 
     def test_the_admin_can_still_add_for_such_an_address(self):
         for i in range(3):
             self.reg(f"k{i}")
-        reg, _ = adm.manual_add(event=self.event, tickets=self.store.get_tickets("e1"), form=self.form, now=NOW, actor="a", member=None,
+        reg, _ = adm.manual_add(event=self.event, tickets=self.store.get_tickets("e1"), form=self.form, now=NOW, actor="a", account=None,
                                 body={"tickets": {"adult": 1}, "answers": {**ANSWERS}, "idempotencyKey": "x"})
         self.assertEqual(reg["status"], "pending_payment")
 
@@ -326,8 +326,8 @@ class AnonymiseTests(Base):
         out = adm.anonymize(self.cancelled, "root@x", NOW, event_over=True, delete_file=self.delete)
         for key in ("fullName", "email", "phone"):
             self.assertIn(out[key], ("Erased", "erased", ""))
-        self.assertEqual(out["answers"], {"membershipStatus": "none"})
-        for gone in ("memberEmail", "memberId", "adminNote", "cancelReason"):
+        self.assertEqual(out["answers"], {})
+        for gone in ("accountEmail", "adminNote", "cancelReason"):
             self.assertNotIn(gone, out)
         self.assertNotEqual(out["checkInToken"], old_token)                       # the old confirmation link stops working
         self.assertEqual((out["totalJpy"], out["tickets"], out["status"], out["paymentStatus"], out["anonymizedBy"]), (1500, self.cancelled["tickets"], "cancelled", "refunded", "root@x"))
@@ -338,11 +338,11 @@ class AnonymiseTests(Base):
             adm.anonymize(out, "root", NOW, event_over=True, delete_file=self.delete)           # already done
 
     def test_member_links_and_exports_no_longer_show_the_person(self):
-        member = logic.register(event=self.event, tickets=self.store.get_tickets("e1"), form=self.form, member=ACTIVE_MEMBER, methods=METHODS, now=NOW,
+        member = logic.register(event=self.event, tickets=self.store.get_tickets("e1"), form=self.form, account=ACCOUNT, methods=METHODS, now=NOW,
                                 body={"tickets": {"free": 1}, "answers": ANSWERS, "idempotencyKey": "m"})[0]
         member = logic.cancel(member, by="x", reason="y", now=NOW, event=self.event)
         out = adm.anonymize(member, "root", NOW, event_over=True, delete_file=self.delete)
-        self.assertEqual(self.store.list_for_member("m@example.com"), [])
+        self.assertEqual(self.store.list_for_account("m@example.com"), [])
         import event_exports as x
         table = x.export_table([out], x.answer_columns([self.form], [out]), self.store.get_tickets("e1"))
         self.assertNotIn("Ann Lee", json.dumps(table))

@@ -1,11 +1,10 @@
 """
 Event platform data model (pure Python, no AWS calls).
 
-Shared by the event-platform Lambdas and by scripts/migrate_events_to_v2.py:
+Shared by the event-platform Lambdas:
   * constants and validation for events, ticket types and form schemas
   * the locked core registration fields and their backend enforcement
   * form-schema versioning (immutable versions, content hash)
-  * mappers that mirror legacy events/registrations into the v2 shapes
 
 Times are ISO-8601 with an explicit +09:00 offset (JST); money is whole JPY.
 """
@@ -19,6 +18,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Optional
 
+import event_addons
 import event_capabilities
 
 JST = timezone(timedelta(hours=9))
@@ -51,8 +51,8 @@ NESTED_QUANTIFIER_RE = re.compile(r"\([^)]*[+*][^)]*\)[+*{]")
 # Every form contains these. The admin may relabel and reorder them (label,
 # helpText, placeholder, position) but never delete them or change what makes
 # them system fields. `source` says where the value comes from:
-#   profile  - prefilled from the signed-in member's profile
-#   system   - read-only, resolved server-side from membership data
+#   profile  - prefilled from the signed-in attendee's account
+#   system   - read-only, resolved server-side (none are defined by default)
 #   user     - entered by the registrant
 CORE_FIELDS = (
     {"key": "fullName", "type": "text", "label": "Full name", "section": "member",
@@ -64,14 +64,6 @@ CORE_FIELDS = (
                  "A Japanese number starting with 0 is saved as +81.",
      "placeholder": "+81 90 1234 5678",
      "source": "profile", "profileKey": "phone", "required": True, "readOnly": False},
-    {"key": "membershipId", "type": "text", "label": "Membership ID", "section": "membership",
-     "source": "system", "required": False, "readOnly": True},
-    {"key": "membershipStatus", "type": "text", "label": "Membership status", "section": "membership",
-     "source": "system", "required": False, "readOnly": True},
-    {"key": "membershipType", "type": "text", "label": "Membership type", "section": "membership",
-     "source": "system", "required": False, "readOnly": True},
-    {"key": "membershipExpiry", "type": "date", "label": "Membership expiry", "section": "membership",
-     "source": "system", "required": False, "readOnly": True},
     {"key": "consentPrivacy", "type": "consent", "label": "I agree to the Privacy Policy", "section": "consent",
      "source": "user", "required": True, "readOnly": False},
     {"key": "consentTerms", "type": "consent", "label": "I agree to the Terms and Conditions", "section": "consent",
@@ -82,8 +74,6 @@ CORE_KEYS = tuple(f["key"] for f in CORE_FIELDS)
 CORE_EDITABLE = ("label", "helpText", "placeholder")
 # Everything else on a core field is restored from CORE_FIELDS on every save.
 CORE_LOCKED_PROPS = ("type", "section", "source", "profileKey", "required", "readOnly")
-
-MEMBERSHIP_STATUSES = ("active", "expired", "none")
 
 
 def _core_field(definition: dict) -> dict:
@@ -110,14 +100,14 @@ def parse_iso(value: Any) -> Optional[datetime]:
 # ── Form schemas ──────────────────────────────────────────────────────────────
 
 def default_form_fields() -> list:
-    """Core fields in their default order (member, membership, consent)."""
+    """Core fields in their default order (contact details, consent)."""
     return [_core_field(f) for f in CORE_FIELDS]
 
 
 def ensure_core_fields(fields: list) -> list:
     """Return `fields` with every core field present and its locked props restored.
 
-    Missing core fields are re-inserted (member/membership at the top, consent at
+    Missing core fields are re-inserted (contact details at the top, consent at
     the bottom); the admin's label/help/placeholder and the position of core
     fields that are present are kept. Called on every save, so a crafted
     payload cannot drop or weaken a core field.
@@ -523,13 +513,11 @@ def validate_event(payload: dict) -> dict:
             break
 
     access = payload.get("access") or {}
-    for key in ("membersOnly", "guestsAllowed"):
-        if key in access and not isinstance(access[key], bool):
-            errors[f"access.{key}"] = "Must be true or false"
-    if access.get("membersOnly") and access.get("guestsAllowed"):
-        errors["access.guestsAllowed"] = "Members-only events cannot allow guests"
+    if "guestsAllowed" in access and not isinstance(access["guestsAllowed"], bool):
+        errors["access.guestsAllowed"] = "Must be true or false"
 
     errors.update(event_capabilities.validate_input(payload.get("capabilities")))
+    errors.update(event_addons.validate_config(payload))
 
     for section in design.get("sections") or []:
         if isinstance(section, dict) and len(str(section.get("content", ""))) > 20000:
@@ -565,9 +553,9 @@ def validate_ticket_type(payload: dict) -> dict:
     errors: dict = {}
     if not str(payload.get("name", "")).strip():
         errors["name"] = "Name is required"
-    for key in ("memberPriceJpy", "nonMemberPriceJpy", "earlyBirdMemberPriceJpy"):
+    for key in ("priceJpy", "earlyBirdPriceJpy"):
         value = payload.get(key)
-        if value is None and key == "earlyBirdMemberPriceJpy":
+        if value is None and key == "earlyBirdPriceJpy":
             continue
         if not _is_int(value) or value < 0:
             errors[key] = "Price must be whole yen, 0 or greater"
@@ -575,7 +563,7 @@ def validate_ticket_type(payload: dict) -> dict:
         value = payload.get(key)
         if value is not None and (not _is_int(value) or value < 1):
             errors[key] = "Must be a whole number, 1 or greater"
-    if payload.get("earlyBirdMemberPriceJpy") is not None and not parse_iso(payload.get("earlyBirdCutoff")):
+    if payload.get("earlyBirdPriceJpy") is not None and not parse_iso(payload.get("earlyBirdCutoff")):
         errors["earlyBirdCutoff"] = "Early-bird pricing needs a cutoff date-time"
     return errors
 
@@ -584,7 +572,7 @@ def validate_ticket_type(payload: dict) -> dict:
 # status endpoint (publishing has extra checks); everything else is server-owned.
 EDITABLE_EVENT_KEYS = ("slug", "title", "shortDescription", "longDescription", "category", "tags",
                        "startsAt", "endsAt", "registrationOpensAt", "registrationClosesAt", "capacity",
-                       "waitlistEnabled", "location", "design", "access", "emails", "capabilities")
+                       "waitlistEnabled", "location", "design", "access", "emails", "capabilities", "slots", "upgrades", "seatMap")
 _OPTIONAL_EVENT_KEYS = ("startsAt", "endsAt", "registrationOpensAt", "registrationClosesAt", "capacity")
 
 
@@ -595,7 +583,6 @@ def new_event(event_id: str, payload: dict, created_by: str = "") -> dict:
         "eventId": event_id,
         "status": "draft",
         "timezone": TIMEZONE_NAME,
-        "source": "native",
         "revision": 1,
         "createdAt": now,
         "updatedAt": now,
@@ -610,7 +597,7 @@ def apply_event_edit(existing: dict, payload: dict, *, now: str = "") -> dict:
     item = dict(existing)
     merged = {**{k: existing.get(k) for k in EDITABLE_EVENT_KEYS if k in existing}, **{
         k: payload[k] for k in EDITABLE_EVENT_KEYS if k in payload}}
-    access = {"membersOnly": False, "guestsAllowed": True, "requireRenewalCover": True}
+    access = {"guestsAllowed": True}
     access.update(merged.get("access") or {})
     design = {"layout": "classic", "accentColor": "#1a7f5a", "gallery": [],
               "sections": [{"key": k, "enabled": False} for k in PAGE_SECTIONS]}
@@ -635,130 +622,10 @@ def apply_event_edit(existing: dict, payload: dict, *, now: str = "") -> dict:
     })
     if merged.get("capabilities") is not None:
         item["capabilities"] = event_capabilities.clean_input(merged["capabilities"])
+    item.update(event_addons.clean_config(merged))
     for key in _OPTIONAL_EVENT_KEYS:
         if merged.get(key) in (None, ""):
             item.pop(key, None)            # DynamoDB keys/indexes must not hold empty values
         else:
             item[key] = merged[key]
     return item
-
-
-# ── Membership status (derived; see npo_membership.evaluate) ──────────────────
-
-def membership_status(summary: Optional[dict]) -> str:
-    """Map an npo_membership.evaluate() summary to active | expired | none."""
-    if not summary:
-        return "none"
-    if summary.get("validNow"):
-        return "active"
-    return "expired" if summary.get("latestTo") else "none"
-
-
-def meets_membership_requirement(summary: Optional[dict], require_renewal_cover: bool = True) -> bool:
-    """Members-only gate: valid now and (by default) covering the renewal year."""
-    if not summary or not summary.get("validNow"):
-        return False
-    return bool(summary.get("coversRenewal")) if require_renewal_cover else True
-
-
-# ── Legacy mirroring ──────────────────────────────────────────────────────────
-
-_LEGACY_STATUS = {"active": "published", "inactive": "draft", "archived": "archived"}
-_DATE_FORMATS = ("%Y-%m-%d", "%B %d, %Y", "%b %d, %Y", "%d %B %Y", "%d %b %Y", "%Y/%m/%d")
-
-
-def _legacy_date(raw: Any) -> Optional[date]:
-    value = str(raw or "").strip()
-    if not value:
-        return None
-    parsed = parse_iso(value)
-    if parsed:
-        return parsed.astimezone(JST).date()
-    for fmt in _DATE_FORMATS:
-        try:
-            return datetime.strptime(value, fmt).date()
-        except ValueError:
-            continue
-    return None
-
-
-def _strip_empty(item: dict) -> dict:
-    return {k: v for k, v in item.items() if v not in (None, "")}
-
-
-def legacy_event_id(event_type: str) -> str:
-    return f"legacy-{event_type}"
-
-
-def legacy_event_to_v2(item: dict) -> dict:
-    """Mirror a legacy events-table item. Deterministic, so re-runs overwrite in place.
-
-    The mirror is `registrationMode: "legacy"`: registration keeps going through
-    the original flow (`registrationPath`); the mirror exists for listing and
-    reporting only.
-    """
-    event_type = str(item["eventType"])
-    info = item.get("eventInfo") if isinstance(item.get("eventInfo"), dict) else {}
-    registration = item.get("registration") if isinstance(item.get("registration"), dict) else {}
-    day = _legacy_date(item.get("eventDate") or info.get("date"))
-    closes_on = _legacy_date(registration.get("closesOn"))
-    capacity = item.get("capacity")
-    created = item.get("createdAt") or now_iso()
-    mirrored = {
-        "eventId": legacy_event_id(event_type),
-        "slug": slugify(event_type) or "event",
-        "status": _LEGACY_STATUS.get(str(item.get("status", "inactive")).lower(), "draft"),
-        "title": str(item.get("eventName") or event_type).strip(),
-        "shortDescription": str(item.get("description", "")).strip(),
-        "longDescription": "",
-        "timezone": TIMEZONE_NAME,
-        "startsAt": datetime(day.year, day.month, day.day, tzinfo=JST).isoformat(timespec="seconds") if day else None,
-        "registrationClosesAt": (
-            datetime(closes_on.year, closes_on.month, closes_on.day, 23, 59, 59, tzinfo=JST).isoformat(timespec="seconds")
-            if closes_on else None
-        ),
-        "capacity": int(capacity) if capacity not in (None, "") and int(capacity) > 0 else None,
-        "location": _strip_empty({"venueName": item.get("venue"), "address": item.get("venueAddress")}),
-        "design": {"layout": "classic", "accentColor": "#1a7f5a",
-                   "sections": [{"key": k, "enabled": False} for k in PAGE_SECTIONS]},
-        "access": {"membersOnly": False, "guestsAllowed": False, "requireRenewalCover": True},
-        "waitlistEnabled": False,
-        "emails": {},
-        "capabilities": event_capabilities.from_legacy_event_info(info),
-        "source": "legacy",
-        "registrationMode": "legacy",
-        "registrationPath": item.get("registrationPath"),
-        "legacyEventType": event_type,
-        "legacyEventDate": item.get("eventDate"),
-        "createdAt": created,
-        "updatedAt": item.get("updatedAt") or created,
-    }
-    return _strip_empty(mirrored)
-
-
-# Top-level legacy registration attributes that are mapped to first-class fields.
-_LEGACY_REG_CORE = {"registrationId", "eventType", "email", "name", "phone", "submittedAt", "updatedAt",
-                    "paymentStatus", "totalAmount", "registrationPassToken"}
-
-
-def legacy_registration_to_v2(item: dict) -> dict:
-    """Mirror a legacy registration; every other attribute is kept under `answers`."""
-    legacy_id = str(item["registrationId"])
-    submitted = item.get("submittedAt") or now_iso()
-    payment = str(item.get("paymentStatus") or "").strip().lower()
-    mirrored = {
-        "registrationId": f"legacy-{legacy_id}",
-        "eventId": legacy_event_id(str(item.get("eventType", ""))),
-        "email": str(item.get("email", "")).strip().lower(),
-        "fullName": item.get("name"),
-        "phone": item.get("phone"),
-        "status": "confirmed",
-        "paymentStatus": payment if payment in PAYMENT_STATUSES else "pending",
-        "totalJpy": item.get("totalAmount"),
-        "answers": {k: v for k, v in item.items() if k not in _LEGACY_REG_CORE and v not in (None, "")},
-        "source": "legacy",
-        "legacyRegistrationId": legacy_id,
-        "createdAt": submitted,
-        "updatedAt": item.get("updatedAt") or submitted,
-    }
-    return _strip_empty(mirrored)

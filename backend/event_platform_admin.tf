@@ -52,10 +52,6 @@ data "archive_file" "manage_event_platform" {
     filename = "event_registration_admin.py"
   }
 
-  source {
-    content  = file("${path.module}/../lambdas/membership/npo_membership.py")
-    filename = "npo_membership.py"
-  }
 
   source {
     content  = file("${path.module}/../plugins/seat-upgrade/backend/lambdas/square.py")

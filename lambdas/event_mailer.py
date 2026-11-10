@@ -11,6 +11,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from html import escape
 
+import event_addons
 import event_model
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ DEFAULTS = {
 def _event_date(event: dict) -> str:
     start = event_model.parse_iso(event.get("startsAt"))
     if not start:
-        return event.get("legacyEventDate", "") or "To be announced"
+        return "To be announced"
     text = start.astimezone(event_model.JST).strftime("%Y-%m-%d %H:%M JST")
     end = event_model.parse_iso(event.get("endsAt"))
     if end and end.date() != start.date():
@@ -95,6 +96,9 @@ def payment_block(reg: dict, methods: dict) -> list:
 def summary_block(reg: dict) -> list:
     lines = [f"Registration ID: {reg['registrationId']}"]
     lines += [f"  {l['name']} × {l['qty']}: {_yen(l['subtotalJpy'])}" for l in reg.get("tickets", [])]
+    extra = event_addons.describe(reg)
+    if extra:
+        lines += [f"  {part}" for part in extra.split("; ")]
     lines.append(f"Total: {_yen(reg.get('totalJpy', 0))}")
     return lines
 
@@ -132,6 +136,7 @@ def summary_html(reg: dict, event: dict) -> str:
     if venue:
         rows += _row("Where", venue)
     rows += "".join(_row(f"{l['name']} × {l['qty']}", _yen(l["subtotalJpy"])) for l in reg.get("tickets", []))
+    rows += "".join(_row(part.split(": ", 1)[0], part.split(": ", 1)[1]) for part in event_addons.describe(reg).split("; ") if ": " in part)
     total = (f'<tr><td style="padding:12px 0 0;color:#1b2621;font-size:15px;font-weight:700;border-top:2px solid #d5dfd9;">Total</td>'
              f'<td style="padding:12px 0 0;color:#1b2621;font-size:15px;font-weight:900;text-align:right;border-top:2px solid #d5dfd9;">'
              f'{escape(_yen(reg.get("totalJpy", 0)))}</td></tr>')
@@ -159,7 +164,7 @@ def qr_html() -> str:
 
 
 def branded_html(title: str, inner_html: str, *, accent: str = "", event_url: str = "", button_label: str = "View event details") -> str:
-    """The shared WMF Japan email frame (same look as the legacy registration emails)."""
+    """The shared WMF Japan email frame (WMF Japan branding)."""
     accent = accent if SAFE_COLOR_RE.match(accent or "") else "#69a785"
     logo = (f'<img src="{FRONTEND_URL}/logo.png" alt="WMF Japan" width="100" height="54" '
             f'style="display:block;margin:0 auto 14px;border:0;max-width:100px;height:auto;" />' if FRONTEND_URL else "")

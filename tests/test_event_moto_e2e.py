@@ -15,14 +15,13 @@ except ImportError:  # pragma: no cover
     mock_aws = None
 
 ROOT = Path(__file__).resolve().parents[1]
-for sub in ("lambdas", "lambdas/manage_event_platform", "lambdas/membership", "plugins/seat-upgrade/backend/lambdas", "tests"):
+for sub in ("lambdas", "lambdas/manage_event_platform", "plugins/seat-upgrade/backend/lambdas", "tests"):
     sys.path.insert(0, str(ROOT / sub))
 
 ENV = {"REGION": "ap-northeast-1", "AWS_DEFAULT_REGION": "ap-northeast-1", "AWS_ACCESS_KEY_ID": "x", "AWS_SECRET_ACCESS_KEY": "x",
        "EVENTS_V2_TABLE": "events", "EVENT_TICKET_TYPES_TABLE": "tickets", "FORM_SCHEMAS_TABLE": "forms",
        "EVENT_REGISTRATIONS_TABLE": "regs", "EVENT_COUNTERS_TABLE": "counters", "AUDIT_LOG_TABLE": "audit",
-       "MEMBERS_TABLE": "members", "MEMBERSHIP_TABLE": "npo", "SITE_CONFIG_TABLE": "siteconfig",
-       "OTP_TOKEN_SECRET": "s", "MEMBERSHIP_AS_OF": "2026-09-01"}
+       "SITE_CONFIG_TABLE": "siteconfig", "ATTENDEE_USER_POOL_ID": "ap-northeast-1_TESTPOOL", "ATTENDEE_APP_CLIENT_ID": "test-client-id"}
 
 
 def gsi(name, hash_key, range_key=None):
@@ -46,8 +45,6 @@ def create_tables(db):
                                           gsi("StatusHoldIndex", "status", "holdUntil")])
     table("counters", "counterKey")
     table("audit", "entityKey", "sortKey")
-    table("members", "email")
-    table("npo", "memberid", "transactionNo")
     table("siteconfig", "configKey")
 
 
@@ -116,7 +113,7 @@ class EndToEnd(unittest.TestCase):
                                                  "endsAt": "2026-12-10T16:00:00+09:00", "capacity": 10, "waitlistEnabled": True})
         self.assertEqual(status, 201, body)
         self.eid = body["event"]["eventId"]
-        status, body = self.a("POST", f"events/{self.eid}/tickets", {"name": "Adult", "memberPriceJpy": 1000, "nonMemberPriceJpy": 1500})
+        status, body = self.a("POST", f"events/{self.eid}/tickets", {"name": "Adult", "priceJpy": 1500})
         self.assertEqual(status, 201, body)
         self.adult = body["ticket"]["ticketTypeId"]
         status, body = self.a("POST", f"events/{self.eid}/status", {"status": "published"})
@@ -345,24 +342,21 @@ class EndToEnd(unittest.TestCase):
     def revision(self):
         return self.a("GET", f"events/{self.eid}")[1]["event"]["revision"]
 
-    def test_member_cancel_via_public_api(self):
-        import boto3
-        db = boto3.resource("dynamodb", region_name="ap-northeast-1")
-        db.Table("members").put_item(Item={"email": "m@example.com", "memberid": "M1", "npoMembershipActive": True, "fullname": "Mia"})
-        db.Table("npo").put_item(Item={"memberid": "M1", "transactionNo": "T1", "membDateFrom": "2025-11-01", "membDateTo": "2027-10-31"})
-        import base64, hashlib, hmac, time
-        payload = json.dumps({"email": "m@example.com", "exp": int(time.time()) + 600}).encode()
-        b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
-        token = f"{b64(payload)}.{b64(hmac.new(b's', payload, hashlib.sha256).digest())}"
-        status, body = self.p("POST", "events/picnic/register", {"tickets": {self.adult: 1}, "paymentMethod": "bank",
-                                                                  "answers": {**ANSWERS, "email": "m@example.com"}, "idempotencyKey": "m1"}, token=token)
-        self.assertEqual(status, 201, body)
-        rid = body["registration"]["registrationId"]
-        status, body = self.p("GET", "my/registrations", token=token)
-        self.assertEqual(status, 200, body)
-        status, body = self.p("DELETE", f"my/registrations/{rid}", token=token)
-        self.assertEqual(status, 200, body)
-        self.assertEqual(self.counter(), 0)
+    def test_attendee_can_list_and_cancel_through_the_public_api(self):
+        import cognito_jwt
+        import jwt_fakes as jf
+        verifier = cognito_jwt.CognitoVerifier(jf.REGION, jf.POOL, jf.CLIENT, fetcher=lambda url: jf.jwks("kid-1"))
+        with mock.patch.object(self.public, "_verifier", verifier):
+            token = jf.mint({"email": "m@example.com", "sub": "sub-m"})
+            status, body = self.p("POST", "events/picnic/register", {"tickets": {self.adult: 1}, "paymentMethod": "bank",
+                                                                      "answers": {**ANSWERS, "email": "m@example.com"}, "idempotencyKey": "m1"}, token=token)
+            self.assertEqual(status, 201, body)
+            rid = body["registration"]["registrationId"]
+            status, body = self.p("GET", "my/registrations", token=token)
+            self.assertEqual((status, len(body["registrations"])), (200, 1))
+            status, body = self.p("DELETE", f"my/registrations/{rid}", token=token)
+            self.assertEqual(status, 200, body)
+            self.assertEqual(self.counter(), 0)
 
 
 if __name__ == "__main__":

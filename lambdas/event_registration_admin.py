@@ -7,6 +7,7 @@ event_registrations.store (the Lambda wires in event_reg_store, the tests a fake
 import time
 from typing import Optional
 
+import event_addons
 import event_exports
 import event_model
 import event_pricing
@@ -44,7 +45,7 @@ def admin_view(reg: dict) -> dict:
 
 def _search_text(reg: dict) -> str:
     parts = [reg.get("registrationId", ""), reg.get("fullName", ""), reg.get("email", ""), reg.get("phone", ""),
-             event_exports.tickets_summary(reg), reg.get("adminNote", "")]
+             event_exports.tickets_summary(reg), event_addons.describe(reg), reg.get("adminNote", "")]
     parts += [event_exports._flatten(v) for v in reg.get("answers", {}).values()]
     return " ".join(str(p) for p in parts).lower()
 
@@ -145,14 +146,13 @@ def dashboard(event: dict, tickets: list, regs: list, counters: dict) -> dict:
 
 # ── manual add / edit ─────────────────────────────────────────────────────────
 
-def manual_add(*, event, tickets, form, body, member, now, actor) -> tuple:
+def manual_add(*, event, tickets, form, body, account, now, actor) -> tuple:
     """Add a registration on someone's behalf (phone/paper sign-up, comp tickets, corrections).
 
     Skips the registration window and access rules, but not validation: tickets, form answers and capacity are
     still checked (capacity only when `ignoreCapacity` is off). Returns (registration, created).
     """
-    eligible = event_pricing.is_member_price_eligible(member)
-    lines, quoted, errors = event_pricing.quote(tickets, body.get("tickets"), eligible, now)
+    lines, quoted, errors = event_pricing.quote(tickets, body.get("tickets"), now)
     if errors:
         raise logic.RegError(400, "Please check the tickets", errors)
     total = quoted
@@ -161,7 +161,7 @@ def manual_add(*, event, tickets, form, body, member, now, actor) -> tuple:
         if not isinstance(override, int) or isinstance(override, bool) or override < 0:
             raise logic.RegError(400, "The total must be whole yen, 0 or more", {"totalJpy": "Invalid amount"})
         total = override
-    clean, answer_errors = form_engine.validate_submission(form, body.get("answers"), logic.member_context(member))
+    clean, answer_errors = form_engine.validate_submission(form, body.get("answers"), logic.account_context(account))
     if answer_errors:
         raise logic.RegError(400, "Please check the highlighted answers", answer_errors)
 
@@ -194,15 +194,13 @@ def manual_add(*, event, tickets, form, body, member, now, actor) -> tuple:
             "formId": form["formId"], "formVersion": int(form["version"]), "formHash": form["schemaHash"],
             "tickets": [{k: v for k, v in l.items() if k != "limit"} for l in lines], "seats": sum(l["qty"] for l in lines),
             "totalJpy": total, "paymentMethod": method, "paymentStatus": payment, "status": "confirmed",
-            "checkInToken": logic.new_check_in_token(), "revision": 1, "source": "native", "addedByAdmin": True,
+            "checkInToken": logic.new_check_in_token(), "revision": 1, "addedByAdmin": True,
             "createdBy": actor, "consentedAt": stamp, "consentRecordedBy": actor, "createdAt": stamp, "updatedAt": stamp,
         }
         if note:
             reg["adminNote"] = note
-        if member and member.get("loggedIn"):
-            reg["memberEmail"] = member["email"]
-            if member.get("memberId"):
-                reg["memberId"] = member["memberId"]
+        if account:
+            reg["accountEmail"] = account["email"]
         if payment == "paid":
             reg.update({"paidAt": stamp, "paidVia": via, "markedPaidBy": actor})
         elif payment == "pending":
@@ -236,10 +234,7 @@ def admin_edit(reg: dict, form_version: dict, body: dict, actor: str, now) -> di
         raise logic.RegError(400, "revision is required (reload the registration and try again)")
     updates = {"updatedAt": now.isoformat(timespec="seconds"), "updatedBy": actor}
     if "answers" in body:
-        context = {k: reg["answers"][k] for k in ("membershipId", "membershipStatus", "membershipType", "membershipExpiry")
-                   if k in reg["answers"]}
-        if reg.get("memberEmail"):
-            context.update({"email": reg["email"], "memberId": reg.get("memberId", "")})
+        context = {"email": reg["email"]} if reg.get("accountEmail") else {}
         clean, errors = form_engine.validate_submission(form_version, body["answers"], context)
         if errors:
             raise logic.RegError(400, "Please check the highlighted answers", errors)
@@ -312,7 +307,7 @@ def check_in(reg: Optional[dict], token: Optional[str], event_id: str, actor: st
     """Check someone in (or undo). Always returns a result code the scanner screen can show:
     ok | already | not_found | wrong_event | cancelled | waitlisted | payment_due | not_checked_in (undo of nothing)."""
     import hmac
-    if not reg or reg.get("source") != "native":
+    if not reg:
         return {"result": "not_found"}
     if token is not None and not hmac.compare_digest(str(reg.get("checkInToken", "")), str(token)):
         return {"result": "not_found"}                    # a forged or stale code reveals nothing
@@ -412,7 +407,7 @@ def anonymize(reg: dict, actor: str, now, *, event_over: bool, delete_file) -> d
     """Erase a registrant's personal data (APPI deletion request), keeping what accounting needs.
 
     Kept: ticket lines, totals, payment and refund facts, status, timestamps. Erased: name, email, phone, every
-    answer except the membership status, the member link, uploaded files, and the registrant's access link.
+    answer, the account link, uploaded files, and the registrant's access link.
     Irreversible. Only for cancelled registrations or events that have ended.
     """
     if reg.get("anonymizedAt"):
@@ -424,11 +419,10 @@ def anonymize(reg: dict, actor: str, now, *, event_over: bool, delete_file) -> d
     for ref in file_refs(reg.get("answers", {})):
         delete_file(reg["eventId"], ref["fileId"])
     stamp = now.isoformat(timespec="seconds")
-    kept = {k: v for k, v in reg.get("answers", {}).items() if k == "membershipStatus"}
-    updates = {"fullName": "Erased", "email": "erased", "phone": "", "answers": kept, "checkInToken": logic.new_check_in_token(),
+    updates = {"fullName": "Erased", "email": "erased", "phone": "", "answers": {}, "checkInToken": logic.new_check_in_token(),
                "anonymizedAt": stamp, "anonymizedBy": actor, "updatedAt": stamp}
     try:
         return logic.store.update_registration(reg["registrationId"], updates, expect_revision=reg["revision"], bump=True,
-                                               remove=["memberEmail", "memberId", "adminNote", "refundNote", "cancelReason"])
+                                               remove=["accountEmail", "accountSub", "addons", "adminNote", "refundNote", "cancelReason"])
     except logic.StateConflict:
         raise logic.RegError(409, "This registration changed in the meantime. Reload it and try again.")

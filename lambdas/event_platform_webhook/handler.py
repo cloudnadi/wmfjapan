@@ -57,7 +57,7 @@ def lambda_handler(event, context):
     if not order_id:
         return respond(200, {"ok": True})
     reg = store.find_by_provider_id(order_id)
-    if not reg or reg.get("source") != "native":
+    if not reg:
         return respond(200, {"ok": True})            # not ours (membership / seat orders use other webhooks)
     when = datetime.now(event_model.JST)
     if parsed.get("status") == "COMPLETED":

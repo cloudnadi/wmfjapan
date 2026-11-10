@@ -25,7 +25,6 @@ Lambda: /admin/event-platform/{proxy+}   (Cognito-authorized; roles checked here
   GET    /form-templates/{id}                  one template
   DELETE /form-templates/{id}                  super admin only
 
-Legacy events mirrored from the old events table are read-only here.
 """
 
 import base64
@@ -38,7 +37,6 @@ from decimal import Decimal
 import admin_roles
 import event_exports
 import event_mailer
-import event_members
 import event_model
 import event_registration_admin as radm
 import event_registrations as logic
@@ -62,8 +60,6 @@ IMAGE_TYPES = {"image/jpeg": (".jpg", b"\xff\xd8\xff"), "image/png": (".png", b"
                "image/webp": (".webp", b"RIFF")}
 MAX_IMAGE_BYTES = 3 * 1024 * 1024
 MAX_GALLERY = 12
-MEMBERSHIP_AS_OF = os.environ.get("MEMBERSHIP_AS_OF", "")
-RENEWAL_YEAR = os.environ.get("RENEWAL_MEMBERSHIP_YEAR", "2026-27")
 BULK_BATCH = 100
 MAX_EXPORT_ROWS = 20000
 
@@ -135,11 +131,6 @@ def load_event(event_id):
     if not item:
         raise ApiError(404, "Event not found")
     return item
-
-
-def require_native(item):
-    if item.get("source") == "legacy":
-        raise ApiError(409, "This event is managed in the legacy Events tab and is read-only here")
 
 
 def audit(entity_key, action, actor, summary, changes=None):
@@ -224,7 +215,6 @@ def get_event(event_id):
 def update_event(event, event_id, body):
     actor = admin_roles.actor_of(event)
     existing = load_event(event_id)
-    require_native(existing)
     expected = parse_expected_revision(body)
     updated = event_model.apply_event_edit(existing, body)
     errors = event_model.validate_event(updated)
@@ -240,7 +230,6 @@ def update_event(event, event_id, body):
 def set_status(event, event_id, body):
     actor = admin_roles.actor_of(event)
     existing = load_event(event_id)
-    require_native(existing)
     target = body.get("status")
     if target not in event_model.EVENT_STATUSES:
         raise ApiError(400, "Invalid status", {"status": "Must be one of " + ", ".join(event_model.EVENT_STATUSES)})
@@ -261,7 +250,6 @@ def delete_event(event, event_id):
     if not admin_roles.has_role(event, admin_roles.SUPER_ADMIN):
         raise ApiError(403, "Only a super admin can delete events. Archive it instead.")
     existing = load_event(event_id)
-    require_native(existing)
     if store.has_registrations(event_id):
         raise ApiError(409, "This event has registrations and cannot be deleted. Archive it instead.")
     for ticket in store.list_tickets(event_id):
@@ -280,10 +268,9 @@ def duplicate_event(event, event_id):
     while store.slug_taken(slug):
         slug, n = f"{base}-{n}", n + 1
     now = event_model.now_iso()
-    item = {k: v for k, v in source.items() if k not in ("registrationMode", "registrationPath", "legacyEventType",
-                                                           "legacyEventDate", "createdBy")}
+    item = {k: v for k, v in source.items() if k != "createdBy"}
     item.update({"eventId": new_event_id, "slug": slug, "title": f"{source['title']} (copy)", "status": "draft",
-                 "source": "native", "revision": 1, "createdAt": now, "updatedAt": now, "createdBy": actor})
+                 "revision": 1, "createdAt": now, "updatedAt": now, "createdBy": actor})
     item.pop("formId", None)
     previous_form = store.latest_form(source["formId"]) if source.get("formId") else None
     fields = previous_form["fields"] if previous_form else event_model.default_form_fields()
@@ -307,11 +294,11 @@ def ticket_item(event_id, ticket_id, body, existing=None):
     item = {
         "eventId": event_id, "ticketTypeId": ticket_id,
         "name": body["name"].strip(), "description": str(body.get("description", "")).strip(),
-        "memberPriceJpy": body["memberPriceJpy"], "nonMemberPriceJpy": body["nonMemberPriceJpy"],
+        "priceJpy": body["priceJpy"],
         "sortOrder": int(body.get("sortOrder", 0) or 0), "active": bool(body.get("active", True)),
         "createdAt": (existing or {}).get("createdAt", now), "updatedAt": now,
     }
-    for key in ("earlyBirdMemberPriceJpy", "earlyBirdCutoff", "quantityLimit", "perPersonCap"):
+    for key in ("earlyBirdPriceJpy", "earlyBirdCutoff", "quantityLimit", "perPersonCap"):
         if body.get(key) not in (None, ""):
             item[key] = body[key]
     return item
@@ -320,7 +307,6 @@ def ticket_item(event_id, ticket_id, body, existing=None):
 def save_ticket(event, event_id, ticket_id, body):
     actor = admin_roles.actor_of(event)
     existing_event = load_event(event_id)
-    require_native(existing_event)
     existing = store.get_ticket(event_id, ticket_id) if ticket_id else None
     if ticket_id and not existing:
         raise ApiError(404, "Ticket type not found")
@@ -333,7 +319,6 @@ def save_ticket(event, event_id, ticket_id, body):
 
 def delete_ticket(event, event_id, ticket_id):
     existing_event = load_event(event_id)
-    require_native(existing_event)
     ticket = store.get_ticket(event_id, ticket_id)
     if not ticket:
         raise ApiError(404, "Ticket type not found")
@@ -346,7 +331,6 @@ def delete_ticket(event, event_id, ticket_id):
 
 def upload_image(event, event_id, body):
     existing = load_event(event_id)
-    require_native(existing)
     content_type = body.get("contentType", "")
     if content_type not in IMAGE_TYPES:
         raise ApiError(400, "Unsupported image type. Allowed: " + ", ".join(sorted(IMAGE_TYPES)))
@@ -428,7 +412,6 @@ def get_form(event_id):
 
 def put_form(event, event_id, body):
     item = load_event(event_id)
-    require_native(item)
     base = body.get("baseVersion")
     if not isinstance(base, int) or isinstance(base, bool):
         raise ApiError(400, "baseVersion is required (reload the form and try again)")
@@ -451,11 +434,7 @@ def get_form_version(event_id, version):
 def validate_sample(event_id, body):
     item = load_event(event_id)
     form = load_form(item)
-    context = {}
-    if body.get("asMember"):
-        context = {"email": "member@example.com", "memberId": "M-TEST", "membershipStatus": "active",
-                   "membershipType": "Individual", "membershipExpiry": "2099-03-31"}
-    clean, errors = form_engine.validate_submission(form, body.get("answers"), context)
+    clean, errors = form_engine.validate_submission(form, body.get("answers"), {})
     return 200, {"clean": clean, "errors": errors, "version": form["version"]}
 
 
@@ -479,7 +458,6 @@ def source_fields(body):
 
 def apply_form_source(event, event_id, body):
     item = load_event(event_id)
-    require_native(item)
     base = body.get("baseVersion")
     if not isinstance(base, int) or isinstance(base, bool):
         raise ApiError(400, "baseVersion is required (reload the form and try again)")
@@ -555,13 +533,12 @@ def now_jst():
 
 def load_native_event(event_id):
     item = load_event(event_id)
-    require_native(item)
     return item
 
 
 def load_registration(event_id, reg_id):
     reg = regstore.get_registration(reg_id)
-    if not reg or reg.get("eventId") != event_id or reg.get("source") != "native":
+    if not reg or reg.get("eventId") != event_id:
         raise ApiError(404, "Registration not found")
     return reg
 
@@ -618,15 +595,9 @@ def reg_get(event_id, reg_id):
 def reg_add(event, event_id, body):
     _wire()
     item = load_native_event(event_id)
-    member = None
-    member_email = str(body.get("memberEmail", "")).strip().lower()
-    if member_email:
-        member = event_members.membership_for_email(regstore, member_email, as_of=MEMBERSHIP_AS_OF, renewal_year=RENEWAL_YEAR)
-        if not member.pop("known"):
-            raise ApiError(400, "No member with that email address", {"memberEmail": "Not a member"})
     actor = admin_roles.actor_of(event)
     reg, created = radm.manual_add(event=item, tickets=store.list_tickets(event_id), form=load_form(item), body=body,
-                                   member=member, now=now_jst(), actor=actor)
+                                   account=None, now=now_jst(), actor=actor)
     if created:
         reg_audit(reg["registrationId"], event_id, event, "create", f"Added by {actor}: {reg['seats']} ticket(s), {reg['status']}")
         audit(f"EVENT#{event_id}", "registration", actor, f"Added registration {reg['registrationId']} ({reg['fullName']})")

@@ -13,7 +13,7 @@ Rules
   hidden: its answer is discarded and it is never required. Later conditions
   see hidden fields as empty.
 * Unknown answer keys are dropped; only schema fields are ever stored.
-* System fields (membership info) and the account email are filled from the
+* System fields and the account email are filled from the
   server-side `context`, never from the client.
 """
 
@@ -32,18 +32,14 @@ TEXTAREA_HARD_MAX = 5000
 # a second recipient or a display name into a mail header).
 EMAIL_RE = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$")
 CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
-# Same rule as the legacy registration flow: explicit country code.
+# Explicit country code.
 PHONE_RE = re.compile(r"^\+\d{1,4}[\s\-]?\d[\d\s\-]{5,18}$")
 # Domestic Japanese numbers (090-1234-5678, 03-1234-5678) are accepted and stored as +81 ...
 JP_DOMESTIC_RE = re.compile(r"^0\d{9,10}$")
 SAFE_FILENAME_RE = re.compile(r"[^\w.\- ()]")
 
-SYSTEM_FIELD_CONTEXT = {
-    "membershipId": "memberId",
-    "membershipStatus": "membershipStatus",
-    "membershipType": "membershipType",
-    "membershipExpiry": "membershipExpiry",
-}
+# Read-only "system" fields take their value from server-side context. None are defined by default.
+SYSTEM_FIELD_CONTEXT: dict = {}
 
 
 # ── conditions ────────────────────────────────────────────────────────────────
@@ -282,8 +278,7 @@ def _validate_fields(fields: list, raw: dict, context: dict, errors: dict, prefi
 def validate_submission(schema: dict, answers: Any, context: Optional[dict] = None) -> tuple:
     """Validate `answers` against `schema` ({"fields": [...]}).
 
-    context: server-side facts, e.g. {"email": "...", "memberId": "...",
-    "membershipStatus": "active|expired|none", "membershipType": "...", "membershipExpiry": "YYYY-MM-DD"}.
+    context: server-side facts, e.g. {"email": "..."} for a signed-in account.
     Returns (clean_answers, errors) where errors maps a field path (``key`` or ``group[0].child``)
     to a message. Registrations must be stored from clean_answers only.
     """
@@ -293,6 +288,5 @@ def validate_submission(schema: dict, answers: Any, context: Optional[dict] = No
     if len(json.dumps(answers, default=str)) > MAX_SUBMISSION_BYTES:
         return {}, {"": "Submission is too large"}
     context = dict(context or {})
-    context.setdefault("membershipStatus", "none")
     clean = _validate_fields(schema["fields"], answers, context, errors)
     return clean, errors

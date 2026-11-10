@@ -8,6 +8,7 @@ from datetime import datetime
 from html import escape
 from typing import Any
 
+import event_addons
 import event_model
 
 FIXED_COLUMNS = [
@@ -17,6 +18,7 @@ FIXED_COLUMNS = [
     {"id": "paymentMethod", "label": "Payment method"},
     {"id": "totalJpy", "label": "Total (JPY)", "type": "number"},
     {"id": "seats", "label": "Tickets", "type": "number"},
+    {"id": "addons", "label": "Add-ons (slot, upgrades, seats)"},
     {"id": "createdAt", "label": "Registered at (JST)"},
     {"id": "checkedInAt", "label": "Checked in at (JST)"},
 ]
@@ -74,6 +76,8 @@ def cell(reg: dict, column_id: str) -> str:
         return _flatten(reg.get("answers", {}).get(column_id[2:]))
     if column_id == "seats":
         return str(reg.get("seats", ""))
+    if column_id == "addons":
+        return event_addons.describe(reg)
     if column_id in ("createdAt", "checkedInAt"):
         return _jst(reg.get(column_id))
     if column_id == "totalJpy":

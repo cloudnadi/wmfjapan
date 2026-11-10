@@ -93,8 +93,7 @@ class BuildEmailTests(unittest.TestCase):
         mime = mailer.make_mime(subject, text, html, qr, "a@example.com", "noreply@example.com")
         self.assertIn("Content-ID: <qrcode>", mime.as_string())
 
-    def test_legacy_date_fallback(self):
-        self.assertEqual(mailer._event_date({"legacyEventDate": "September 20, 2026"}), "September 20, 2026")
+    def test_missing_date_fallback(self):
         self.assertEqual(mailer._event_date({}), "To be announced")
 
 

@@ -89,7 +89,7 @@ def req(method, path, body=None, groups="Admins", query=None):
 BASE = {"title": "Autumn Picnic", "slug": "autumn-picnic", "shortDescription": "Fun",
         "longDescription": "<p>Hello <strong>all</strong></p>", "startsAt": "2026-10-10T10:00:00+09:00",
         "endsAt": "2026-10-10T16:00:00+09:00", "capacity": 100}
-TICKET = {"name": "Adult", "memberPriceJpy": 1000, "nonMemberPriceJpy": 1500, "quantityLimit": 50}
+TICKET = {"name": "Adult", "priceJpy": 1500, "quantityLimit": 50}
 
 
 class ApiTestCase(unittest.TestCase):
@@ -174,7 +174,7 @@ class CapabilityAdminTests(ApiTestCase):
 class EventCrudTests(ApiTestCase):
     def test_create_defaults_form_and_audit(self):
         ev = self.create()
-        self.assertEqual((ev["status"], ev["revision"], ev["source"]), ("draft", 1, "native"))
+        self.assertEqual((ev["status"], ev["revision"]), ("draft", 1))
         self.assertTrue(ev["access"]["guestsAllowed"])
         form = self.store.latest_form(ev["formId"])
         self.assertEqual(event_model.validate_form_schema(form), [])
@@ -206,7 +206,7 @@ class EventCrudTests(ApiTestCase):
             "revision": 1, "status": "published", "source": "legacy", "createdBy": "x", "formId": "other", "eventId": "evil"})
         self.assertEqual(status, 200)
         e = body["event"]
-        self.assertEqual((e["status"], e["source"], e["formId"], e["eventId"]), ("draft", "native", ev["formId"], ev["eventId"]))
+        self.assertEqual((e["status"], e["formId"], e["eventId"]), ("draft", ev["formId"], ev["eventId"]))
 
     def test_description_is_sanitised(self):
         ev = self.create(longDescription='<p onclick="x()">Hi</p><script>alert(1)</script><a href="javascript:alert(1)">bad</a>'
@@ -261,20 +261,6 @@ class StatusTests(ApiTestCase):
         self.assertEqual(self.store.events[ev["eventId"]]["revision"], 2)
 
 
-class LegacyTests(ApiTestCase):
-    def test_legacy_mirrors_are_read_only(self):
-        mirror = event_model.legacy_event_to_v2({"eventType": "onam_2026", "eventName": "Onam", "status": "active"})
-        mirror["revision"] = 1
-        self.store.events[mirror["eventId"]] = mirror
-        eid = mirror["eventId"]
-        for method, path, body in (("PUT", f"events/{eid}", {"revision": 1, "title": "x"}),
-                                   ("POST", f"events/{eid}/status", {"status": "closed"}),
-                                   ("DELETE", f"events/{eid}", None),
-                                   ("POST", f"events/{eid}/tickets", TICKET)):
-            self.assertEqual(self.call(method, path, body)[0], 409, path)
-        self.assertEqual(self.call("GET", f"events/{eid}")[0], 200)
-
-
 class DuplicateDeleteTests(ApiTestCase):
     def test_duplicate_copies_tickets_and_form(self):
         ev = self.create()
@@ -300,9 +286,9 @@ class DuplicateDeleteTests(ApiTestCase):
 class TicketTests(ApiTestCase):
     def test_crud_and_validation(self):
         eid = self.create()["eventId"]
-        status, body = self.call("POST", f"events/{eid}/tickets", {**TICKET, "memberPriceJpy": 10.5})
-        self.assertEqual((status, "memberPriceJpy" in body["fields"]), (400, True))
-        status, body = self.call("POST", f"events/{eid}/tickets", {**TICKET, "earlyBirdMemberPriceJpy": 800,
+        status, body = self.call("POST", f"events/{eid}/tickets", {**TICKET, "priceJpy": 10.5})
+        self.assertEqual((status, "priceJpy" in body["fields"]), (400, True))
+        status, body = self.call("POST", f"events/{eid}/tickets", {**TICKET, "earlyBirdPriceJpy": 800,
                                                                   "earlyBirdCutoff": "2026-09-01T00:00:00+09:00"})
         self.assertEqual(status, 201)
         tid = body["ticket"]["ticketTypeId"]
@@ -407,7 +393,7 @@ class FormApiTests(ApiTestCase):
         saved = {f["key"]: f for f in body["form"]["fields"]}
         self.assertIn("consentPrivacy", saved)
         self.assertTrue(saved["consentTerms"]["required"])
-        self.assertEqual((saved["membershipId"]["source"], saved["membershipId"]["readOnly"]), ("system", True))
+        self.assertEqual(saved["email"]["source"], "profile")
         self.assertTrue(all(f["locked"] for k, f in saved.items() if k in event_model.CORE_KEYS))
 
     def test_relabel_and_reorder_core_allowed(self):
@@ -463,17 +449,11 @@ class FormApiTests(ApiTestCase):
         self.put(fields)
         good = {"fullName": "Ann", "email": "a@b.co", "phone": "+81 90 1234 5678", "consentPrivacy": True, "consentTerms": True, "diet": "x"}
         status, body = self.call("POST", f"events/{self.eid}/form/validate", {"answers": good})
-        self.assertEqual((status, body["errors"], body["clean"]["membershipStatus"]), (200, {}, "none"))
-        status, body = self.call("POST", f"events/{self.eid}/form/validate", {"answers": {**good, "diet": ""}, "asMember": True})
+        self.assertEqual((status, body["errors"]), (200, {}))
+        status, body = self.call("POST", f"events/{self.eid}/form/validate", {"answers": {**good, "diet": ""}})
         self.assertEqual(set(body["errors"]), {"diet"})
-        self.assertEqual(self.call("POST", f"events/{self.eid}/form/validate", {"answers": good, "asMember": True})[1]["clean"]["membershipId"], "M-TEST")
 
-    def test_legacy_and_unknown_events(self):
-        mirror = event_model.legacy_event_to_v2({"eventType": "onam_2026", "eventName": "Onam", "status": "active"})
-        mirror["revision"] = 1
-        self.store.events[mirror["eventId"]] = mirror
-        self.assertEqual(self.call("GET", f"events/{mirror['eventId']}/form")[0], 404)
-        self.assertEqual(self.call("PUT", f"events/{mirror['eventId']}/form", {"fields": [], "baseVersion": 1})[0], 409)
+    def test_unknown_events(self):
         self.assertEqual(self.call("GET", "events/none/form")[0], 404)
 
     def test_event_manager_can_edit_form(self):

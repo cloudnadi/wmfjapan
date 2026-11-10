@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-for sub in ("lambdas", "lambdas/manage_event_platform", "lambdas/membership", "plugins/seat-upgrade/backend/lambdas", "tests"):
+for sub in ("lambdas", "lambdas/manage_event_platform", "plugins/seat-upgrade/backend/lambdas", "tests"):
     sys.path.insert(0, str(ROOT / sub))
 os.environ.setdefault("REGION", "ap-northeast-1")
 
@@ -42,8 +42,6 @@ class Base(unittest.TestCase):
         self.pay.create_refund = lambda **kw: self.refunds.append(kw) or {"refundId": "rf-1", "status": "PENDING"}
         self.refunds, self.mails, self.bulk = [], [], []
         self.regs.config["payment_methods_config"] = {"methods": {"bank": {"enabled": True, "instructions": "Acct"}}}
-        self.regs.members["m@example.com"] = {"email": "m@example.com", "memberid": "M1", "npoMembershipActive": True, "fullname": "Mia"}
-        self.regs.txns["M1"] = [{"membDateFrom": "2020-11-01", "membDateTo": "2099-10-31"}]
         patches = [mock.patch.object(handler, "store", self.admin_store), mock.patch.object(handler, "regstore", self.regs),
                    mock.patch.object(handler, "square", self.pay),
                    mock.patch.object(handler.event_mailer, "send", lambda kind, reg, ev, methods: self.mails.append((kind, reg["registrationId"]))),
@@ -56,7 +54,7 @@ class Base(unittest.TestCase):
         self.event = body["event"]
         self.eid = self.event["eventId"]
         self.adult = self.call("POST", f"events/{self.eid}/tickets", TICKET)[1]["ticket"]["ticketTypeId"]
-        self.free = self.call("POST", f"events/{self.eid}/tickets", {"name": "Child", "memberPriceJpy": 0, "nonMemberPriceJpy": 0})[1]["ticket"]["ticketTypeId"]
+        self.free = self.call("POST", f"events/{self.eid}/tickets", {"name": "Child", "priceJpy": 0})[1]["ticket"]["ticketTypeId"]
 
     def call(self, *args, **kwargs):
         res = handler.lambda_handler(req(*args, **kwargs), None)
@@ -76,12 +74,6 @@ class AccessTests(Base):
             self.assertEqual(self.call(method, f"events/{self.eid}/{path}", {} if method == "POST" else None, groups="Other")[0], 403, path)
         self.assertEqual(self.call("GET", f"events/{self.eid}/dashboard", groups="EventManagers")[0], 200)
         self.assertEqual(self.call("GET", f"events/{self.eid}/registrations", groups="EventManagers")[0], 200)
-
-    def test_legacy_event_has_no_registration_tools(self):
-        mirror = event_model.legacy_event_to_v2({"eventType": "onam_2026", "eventName": "Onam", "status": "active"})
-        mirror["revision"] = 1
-        self.admin_store.events[mirror["eventId"]] = mirror
-        self.assertEqual(self.call("GET", f"events/{mirror['eventId']}/dashboard")[0], 409)
 
     def test_registration_of_another_event_is_404(self):
         reg = self.add()
@@ -107,15 +99,11 @@ class DashboardAndTableTests(Base):
 
 
 class ManualAddTests(Base):
-    def test_add_with_audit_and_member_lookup(self):
+    def test_add_with_audit(self):
         reg = self.add("a", paymentStatus="paid", paidVia="cash")
         self.assertEqual((reg["status"], reg["createdBy"], reg["addedByAdmin"]), ("confirmed", "admin@example.com", True))
         self.assertEqual(self.mails, [("confirmed", reg["registrationId"])])
         self.assertTrue(any(a["entityKey"] == f"REG#{reg['registrationId']}" and a["action"] == "create" for a in self.admin_store.audit))
-        member = self.add("m", "ignored@example.com", memberEmail="m@example.com")
-        self.assertEqual((member["email"], member["memberEmail"], member["totalJpy"]), ("m@example.com", "m@example.com", 1000))
-        status, body = self.call("POST", f"events/{self.eid}/registrations", {"tickets": {self.adult: 1}, "answers": ANSWERS, "memberEmail": "nobody@example.com"})
-        self.assertEqual((status, "memberEmail" in body["fields"]), (400, True))
 
     def test_validation_errors_are_structured(self):
         status, body = self.call("POST", f"events/{self.eid}/registrations", {"tickets": {self.adult: 1}, "answers": {**ANSWERS, "fullName": ""}})
