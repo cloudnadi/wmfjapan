@@ -11,7 +11,7 @@
 # ✓ Updated variable AWS_REGION for cloudnadi/wmfjapan
 # ✓ Updated variable TF_STATE_KEY_PREFIX for cloudnadi/wmfjapan
 # AWS OIDC role ARN (recommended; leave empty to use access keys): 
-# AWS access key ID: AKIAVHYANKFUCYDIQNPN
+# AWS access key ID: AKIAXXXXXXXXXXXXXXXX
 # AWS secret access key: 
 # Configuring preview environment secrets...
 # ✓ Set Actions secret TF_STATE_BUCKET for cloudnadi/wmfjapan
