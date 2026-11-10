@@ -622,7 +622,6 @@
   "site.nav.account": "Account",
   "site.nav.menuOpen": "Open menu",
   "site.nav.menuClose": "Close menu",
-  "site.nav.themeToggle": "Toggle light and dark theme",
   "site.nav.primary": "Main navigation",
   "home.title": "Events",
   "home.lead": "Find an event, register in a few steps, and manage your registration. Sign in for member pricing, or continue as a guest.",
@@ -714,5 +713,18 @@
   "auth.callback.not_configured": "Social sign-in is not available right now.",
   "auth.callback.retry": "Back to sign in",
   "auth.unavailable": "Account sign-in isn't set up on this site yet. You can still continue as a guest where the event allows it.",
-  "auth.signedInAs": "Signed in as {email}"
+  "auth.signedInAs": "Signed in as {email}",
+  "home.eyebrow": "{org} presents",
+  "home.stats.upcoming": "Upcoming events",
+  "home.stats.open": "Open for registration",
+  "home.search.label": "Search events",
+  "home.search.placeholder": "Search by name, place or category",
+  "home.filter.category": "Category",
+  "home.filter.all": "All categories",
+  "home.noMatches": "No events match your search.",
+  "pub.badge.open": "Open for registration",
+  "pub.summary.title": "Your order",
+  "pub.summary.empty": "No tickets selected yet.",
+  "pub.summary.when": "When",
+  "pub.summary.where": "Where"
 }

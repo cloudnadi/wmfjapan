@@ -88,6 +88,15 @@ describe("repository hygiene", () => {
     expect(readFileSync(join(SRC, "CelebrityDinnerSignup.jsx"), "utf8")).not.toMatch(/VITE_EVENT_TYPE|onam_2026/);
   });
 
+  it("is a single light theme matching the organisation site: no theme switch, no dark mode", () => {
+    expect(readFileSync(join(ROOT, "index.html"), "utf8")).not.toMatch(/data-theme|wmf-theme/);
+    expect(readFileSync(join(SRC, "Navbar.jsx"), "utf8")).not.toMatch(/theme/i);
+    const css = readFileSync(join(SRC, "styles.css"), "utf8");
+    expect(css).not.toMatch(/\[data-theme/);
+    expect(css).toContain("--wmf-green-brand: #009757");   // wmfjapan.org's green
+    expect(css).toContain("--mint: #dbe8e6");
+  });
+
   it("old organisation branding is gone", () => {
     const hits = files((f) => /\.(jsx?|html|css|md)$/.test(f) && !f.includes("__tests__"))
       .concat([join(ROOT, "index.html")])

@@ -6,108 +6,65 @@
 }
 
 /*
- * Theme aligned with https://beta.wmfjapan.com/
- * WMF Japan design system: dark-first, green + amber brand,
- * Nunito UI / Noto Serif JP display, glassy surfaces, soft rounded cards.
+ * Theme matched to https://www.wmfjapan.org/ — a single light theme: white pages, pale mint panels
+ * (#dbe8e6), WMF green (#009757) for actions and the footer band, plum (#572f47) hero bands, and a
+ * grey (#605e5e) text colour set in a Proxima-Nova-style sans-serif. There is no dark theme.
  */
 :root {
-  /* NK uses Nunito across the board — headings included (Noto Serif JP is
-     only loaded for Japanese glyphs, not Latin display text). */
-  --font-display: 'Nunito', sans-serif;
-  --font-ui: 'Nunito', sans-serif;
-  --font-body: 'Nunito', sans-serif;
+  --font-display: "Proxima Nova", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-ui: "Proxima Nova", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-body: "Proxima Nova", "Helvetica Neue", Helvetica, Arial, sans-serif;
 
-  --content-width: 1280px;
+  --content-width: 1180px;
+  --nav-height: 76px;
 
-  --shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
-  --shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.35);
+  --shadow: 0 14px 34px rgba(53, 32, 43, 0.16);
+  --shadow-soft: 0 4px 16px rgba(53, 32, 43, 0.10);
 
-  --radius: 12px;
-  --radius-sm: 8px;
-}
+  --radius: 6px;
+  --radius-sm: 4px;
 
-/* Dark theme (default) — values pulled from beta.wmfjapan.com */
-:root,
-[data-theme="dark"] {
-  --wmf-green: #5db85c;
-  --wmf-green-deep: #3a8c39;
-  --wmf-red: #e53935;
-  --amber: #f5a623;
-  --amber-glow: rgba(245, 166, 35, 0.15);
-  --cta-text: #0c0f0c;
+  /* The org's brand green (#009757) is 3.8:1 against white, too light for text or white-on-green buttons, so
+     actions use the next shade down (5.4:1). The brand shade stays available for large decoration. */
+  --wmf-green: #007a46;
+  --wmf-green-deep: #006338;
+  --wmf-green-brand: #009757;
+  --wmf-red: #b3261e;
+  --amber: #007a46;           /* primary action colour (historic variable name) */
+  --amber-glow: rgba(0, 151, 87, 0.12);
+  --cta-text: #ffffff;
+  --plum: #572f47;
+  --plum-deep: #1a0f15;
+  --mint: #dbe8e6;
 
-  --bg: #0c0f0c;
-  --surface: #131613;
-  --surface-2: #1b1f1b;
-  --surface-3: #222622;
-
-  --border: rgba(255, 255, 255, 0.12);
-  --border-hover: rgba(255, 255, 255, 0.29);
-
-  --text: #f0ede8;
-  --text-muted: rgba(240, 237, 232, 0.66);
-  --text-faint: rgba(240, 237, 232, 0.55);
-
-  /* Text-safe variants of the accent colors (all ≥ 4.5:1 on this theme's surfaces) */
-  --amber-text: var(--amber);
-  --green-text: var(--wmf-green);
-  --success-text: #8fe08e;
-  --danger-text: #ff8a85;
-  --btn-text: #0a0d0a;
-  /* Outline of form fields: ≥ 3:1 against the surface behind them (WCAG 1.4.11) */
-  --control-border: rgba(240, 237, 232, 0.45);
-
-  --glass: rgba(255, 255, 255, 0.05);
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --nav-bg: rgba(12, 15, 12, 0.96);
-  --toggle-track: rgba(255, 255, 255, 0.12);
-
-  --bg-glow-1: rgba(93, 184, 92, 0.12);
-  --bg-glow-2: rgba(245, 166, 35, 0.08);
-  --bg-gradient: linear-gradient(180deg, #0e120e 0%, #0c0f0c 100%);
-}
-
-/* Light theme — NK's [data-theme=light] palette */
-[data-theme="light"] {
-  --wmf-green: #3a8c39;
-  --wmf-green-deep: #2f7530;
-  --wmf-red: #c62828;
-  --amber: #e8950a;
-  --amber-glow: rgba(232, 149, 10, 0.12);
-  --cta-text: #151a15;
-
-  --bg: #fafcfa;
-  --surface: #f0f5f0;
+  --bg: #ffffff;
+  --surface: #f4f8f7;
   --surface-2: #ffffff;
-  --surface-3: #f5faf5;
+  --surface-3: #dbe8e6;
 
-  --border: rgba(0, 0, 0, 0.10);
-  --border-hover: rgba(0, 0, 0, 0.22);
+  --border: rgba(53, 32, 43, 0.16);
+  --border-hover: rgba(53, 32, 43, 0.34);
 
-  --text: #151a15;
-  --text-muted: rgba(21, 26, 21, 0.72);
-  --text-faint: rgba(21, 26, 21, 0.64);
+  --text: #2f2d2d;
+  --text-muted: #605e5e;
+  --text-faint: #6b6969;
 
-  /* The brand amber/green are too light for text on a light surface; these
-     darker shades keep ≥ 4.5:1 on every light surface used. */
-  --amber-text: #7a4a00;
-  --green-text: #2a6a2b;
-  --success-text: #1e5e20;
+  /* Text-safe variants (all ≥ 4.5:1 on white and on the mint panels) */
+  --amber-text: #00623a;
+  --green-text: #00623a;
+  --success-text: #0d5c36;
   --danger-text: #b3261e;
   --btn-text: #ffffff;
-  --control-border: rgba(21, 26, 21, 0.55);
+  --control-border: rgba(53, 32, 43, 0.55);
 
-  --glass: rgba(0, 0, 0, 0.03);
-  --glass-border: rgba(0, 0, 0, 0.08);
-  --nav-bg: rgba(250, 252, 250, 0.96);
-  --toggle-track: rgba(0, 0, 0, 0.12);
+  --glass: rgba(53, 32, 43, 0.03);
+  --glass-border: rgba(53, 32, 43, 0.10);
+  --nav-bg: linear-gradient(180deg, #ffffff 0%, #dbe8e6 100%);
+  --toggle-track: rgba(53, 32, 43, 0.12);
 
-  --bg-glow-1: rgba(58, 140, 57, 0.10);
-  --bg-glow-2: rgba(232, 149, 10, 0.08);
-  --bg-gradient: linear-gradient(180deg, #ffffff 0%, #fafcfa 100%);
-
-  --shadow: 0 24px 60px rgba(0, 0, 0, 0.12);
-  --shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.08);
+  --bg-glow-1: transparent;
+  --bg-glow-2: transparent;
+  --bg-gradient: linear-gradient(180deg, #ffffff 0%, #ffffff 100%);
 }
 
 /* Legacy aliases mapped onto the NK palette so existing rules keep working */
@@ -140,7 +97,7 @@ body {
   background-attachment: fixed;
   font-family: var(--font-body);
   min-height: 100vh;
-  padding: 96px 16px 64px;
+  padding: calc(var(--nav-height) + 24px) 16px 64px;
   color: var(--text);
   transition: background-color 0.25s ease, color 0.25s ease;
   -webkit-font-smoothing: antialiased;
@@ -159,7 +116,7 @@ body {
   left: 0;
   right: 0;
   z-index: 100;
-  height: 72px;
+  height: var(--nav-height);
   background: var(--nav-bg);
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(20px);
@@ -5862,13 +5819,14 @@ a.partner-card-pub-link:hover .tier-card--bronze   { border-color: rgba(205, 127
   color: var(--btn-text);
 }
 
-[data-theme="light"] .btn-primary,
-[data-theme="light"] .button.primary,
-[data-theme="light"] .regform-toggle-pill.selected,
-[data-theme="light"] .npo-pay-button {
-  background: linear-gradient(180deg, #34823a 0%, #2a6a2b 100%);
-  border-color: #2a6a2b;
+.btn-primary,
+.button.primary,
+.regform-toggle-pill.selected,
+.npo-pay-button {
+  background: var(--wmf-green);
+  border-color: var(--wmf-green-deep);
   color: #fff;
+  box-shadow: none;
 }
 
 .wmf-user-hello {

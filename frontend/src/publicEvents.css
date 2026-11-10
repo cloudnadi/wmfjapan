@@ -1,5 +1,5 @@
 /* Public event pages. Built on the site's theme variables; --pe-accent comes from the event's design. */
-.pe-page { --pe-accent: var(--wmf-green); max-width: 1120px; margin: 0 auto; padding: 96px 20px 56px; color: var(--text); }
+.pe-page { --pe-accent: var(--wmf-green); max-width: 1120px; margin: 0 auto; padding: 28px 20px 56px; color: var(--text); }
 .pe-page h1 { margin: 0 0 12px; line-height: 1.15; letter-spacing: -0.01em; }
 .pe-page h2 { margin: 0 0 12px; font-size: 1.35rem; }
 .pe-section { margin-top: 36px; }
@@ -28,7 +28,7 @@
 .pe-card-text { margin: 4px 0 0; color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .pe-card-cta { margin-top: auto; align-self: flex-start; position: relative; z-index: 1; }
 
-.pe-eyebrow { text-transform: uppercase; letter-spacing: 0.1em; font-size: 12px; font-weight: 700; color: var(--text-muted); margin: 0; }
+.pe-eyebrow { text-transform: uppercase; letter-spacing: 0.1em; font-size: 12px; font-weight: 700; color: var(--green-text); margin: 0; }
 .pe-meta { color: var(--text-muted); font-size: 14px; margin: 0; }
 .pe-note { color: var(--text-muted); font-size: 13px; }
 .pe-warn { color: var(--amber-text); font-size: 13px; font-weight: 700; }
@@ -140,3 +140,79 @@
   .pe-columns { display: block; }
 }
 .pe-chips a { color: var(--green-text); }
+
+
+/* ═══ Event-management look: plum hero bands, mint panels, green actions (matches wmfjapan.org) ═══ */
+.pe-pill-open { background: #e3f3ea; border-color: #9fd2b5; color: var(--success-text); }
+.pe-grow { flex: 1 1 260px; }
+.pe-grow input { width: 100%; }
+
+/* Home */
+.pe-page-home { margin: calc(-1 * (var(--nav-height) + 24px)) -16px 0; }
+.home-hero { background: linear-gradient(180deg, var(--plum-deep) 0%, var(--plum) 100%); color: #fff; padding: calc(var(--nav-height) + 56px) 20px 56px; }
+.home-hero-inner { max-width: var(--content-width); margin: 0 auto; }
+.home-eyebrow { margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.14em; font-size: 1.05rem; color: #fff; }
+.home-hero h1 { margin: 0 0 14px; font-size: clamp(2.2rem, 6vw, 3.6rem); font-weight: 400; text-transform: uppercase; letter-spacing: 0.02em; line-height: 1.08; }
+.home-lead { max-width: 60ch; margin: 0; font-size: 1.1rem; color: #f1e8ee; }
+.home-stats { display: flex; flex-wrap: wrap; gap: 14px; margin: 28px 0 0; }
+.home-stats div { min-width: 170px; padding: 14px 18px; border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 6px; background: rgba(255, 255, 255, 0.08); }
+.home-stats dt { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: #f1e8ee; }
+.home-stats dd { margin: 2px 0 0; font-size: 2.4rem; line-height: 1.1; color: #fff; }
+.home-section { max-width: var(--content-width); margin: 0 auto; padding: 36px 20px 8px; }
+.home-section h2 { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; color: var(--text); border-left: 5px solid var(--wmf-green); padding-left: 12px; }
+.home-filters { background: var(--mint); padding: 14px; border-radius: 6px; }
+.home-membership { background: var(--mint); border: 0; border-radius: 6px; }
+
+/* Cards: a calendar-style date tab and a clear status row */
+.pe-card { border-radius: 6px; border-color: var(--border); box-shadow: var(--shadow-soft); background: #fff; }
+.pe-card:hover, .pe-card:focus-within { border-color: var(--wmf-green); }
+.pe-card-cover-empty { background: linear-gradient(135deg, var(--plum) 0%, var(--plum-deep) 100%); }
+.pe-datebadge { border-radius: 4px; border-top: 4px solid var(--wmf-green); min-width: 56px; }
+.pe-datebadge b { color: var(--text); }
+.pe-card-body h2 { text-transform: none; }
+
+/* Event page: plum header band and a sticky registration panel */
+.pe-article > .pe-header { background: linear-gradient(180deg, var(--plum) 0%, var(--plum-deep) 100%); color: #fff; border-radius: 6px; padding: 28px; overflow: hidden; }
+.pe-article > .pe-header .pe-cover { margin: -28px -28px 20px; }
+.pe-article > .pe-header h1, .pe-article > .pe-header .pe-eyebrow, .pe-article > .pe-header .pe-chips { color: #fff; }
+.pe-article > .pe-header .pe-pill { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.5); color: #fff; }
+.pe-article > .pe-header a { color: #fff; }
+.pe-aside { position: sticky; top: calc(var(--nav-height) + 16px); align-self: start; }
+.pe-box { border-radius: 6px; border-top: 5px solid var(--wmf-green); background: #fff; }
+.pe-regbox { background: #fff; }
+.pe-tickets > li { border-radius: 6px; background: var(--surface); }
+.pe-section > h2 { border-left: 5px solid var(--wmf-green); padding-left: 12px; text-transform: uppercase; letter-spacing: 0.05em; font-size: 1.15rem; }
+
+/* Checkout: numbered progress and an order summary beside the form */
+.pe-steps { display: flex; gap: 0; counter-reset: step; margin: 0 0 22px; flex-wrap: nowrap; }
+.pe-steps li { flex: 1 1 0; position: relative; padding: 0 0 0 40px; border: 0; background: none; border-radius: 0; min-height: 32px; display: flex; align-items: center;
+  font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.pe-steps li::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center; background: #fff; border: 2px solid var(--control-border); color: var(--text-muted); font-size: 0.9rem; }
+.pe-steps li.done::before { background: var(--mint); border-color: var(--wmf-green); color: var(--green-text); }
+.pe-steps li[aria-current="step"] { background: none; color: var(--text); }
+.pe-steps li[aria-current="step"]::before { background: var(--wmf-green); border-color: var(--wmf-green); color: #fff; }
+.pe-checkout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; align-items: start; }
+.pe-summary-card { position: sticky; top: calc(var(--nav-height) + 16px); background: var(--mint); border-radius: 6px; padding: 20px; border-top: 5px solid var(--wmf-green); }
+.pe-summary-card h2 { margin: 0 0 8px; font-size: 1.05rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.pe-summary-event { margin: 0 0 8px; font-weight: 700; }
+.pe-summary-facts { margin: 0 0 12px; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 0.9rem; }
+.pe-summary-facts dt { color: var(--text-muted); }
+.pe-summary-facts dd { margin: 0; }
+.pe-summary-lines { list-style: none; margin: 0; padding: 10px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.pe-summary-lines li { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; padding: 3px 0; }
+.pe-summary-total { display: flex; justify-content: space-between; align-items: baseline; margin: 12px 0 0; font-size: 1.1rem; }
+.pe-summary-total strong { font-size: 1.5rem; }
+
+@media (max-width: 860px) {
+  .pe-checkout { grid-template-columns: 1fr; }
+  .pe-summary-card { position: static; order: -1; }
+  .pe-aside { position: static; }
+  .pe-steps li { font-size: 0.75rem; padding-left: 36px; }
+}
+@media (max-width: 520px) {
+  .pe-steps li { font-size: 0; }      /* numbers only on very small screens; the current step is still announced by aria-current */
+  .pe-steps li::before { font-size: 0.9rem; }
+  .pe-article > .pe-header { padding: 20px; }
+}
+.home-hero-inner { padding: 0 20px; }

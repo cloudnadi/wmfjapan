@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useAuthSession } from "./auth/useAuth";
 import { signOut } from "./auth/session";
 import { t } from "./i18n";
-import { useTheme } from "./theme";
 import "./site.css";
 import { getMembershipStatus } from "./api";
 import { siteConfig } from "./siteConfig";
@@ -147,11 +146,10 @@ function UserMenu({ navigateTo }) {
 }
 
 /**
- * Fixed top navigation: logo, links, the organisation's own site, theme toggle and the account menu.
+ * Fixed top navigation: logo, links, the organisation's own site and the account menu.
  * Collapses to a hamburger on small screens. The admin screens (showUserMenu={false}) pass their own links.
  */
 export default function Navbar({ navigateTo, brand = siteConfig.name, links, primaryAction, showUserMenu = true }) {
-  const { theme, toggleTheme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const { session } = useAuthSession();
   const [memberAuthed, setMemberAuthed] = useState(() => isRegistrantAuthenticated());
@@ -234,21 +232,6 @@ export default function Navbar({ navigateTo, brand = siteConfig.name, links, pri
 
         <div className="wmf-nav-actions">
           {showUserMenu ? <UserMenu navigateTo={navigateTo} /> : null}
-          <button
-            type="button"
-            className="wmf-theme-toggle"
-            onClick={toggleTheme}
-            aria-label={t("site.nav.themeToggle")}
-            aria-pressed={theme === "light"}
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            <span className="wmf-theme-icon" aria-hidden="true">🌙</span>
-            <span className={`wmf-theme-track ${theme === "light" ? "light" : ""}`}>
-              <span className="wmf-theme-knob" />
-            </span>
-            <span className="wmf-theme-icon" aria-hidden="true">☀️</span>
-          </button>
-
           <button
             type="button"
             className="wmf-menu-toggle"

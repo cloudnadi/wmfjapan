@@ -45,6 +45,26 @@ function requiredErrors(fields, answers, prefix = "") {
   return errors;
 }
 
+function OrderSummary({ ev, lines, total }) {
+  const place = [ev.location?.venueName, ev.location?.address].filter(Boolean).join(", ");
+  return (
+    <aside className="pe-summary-card" aria-labelledby="pe-summary-h">
+      <h2 id="pe-summary-h">{t("pub.summary.title")}</h2>
+      <p className="pe-summary-event">{ev.title}</p>
+      <dl className="pe-summary-facts">
+        {ev.startsAt && <><dt>{t("pub.summary.when")}</dt><dd>{formatJst(ev.startsAt)}</dd></>}
+        {place && <><dt>{t("pub.summary.where")}</dt><dd>{place}</dd></>}
+      </dl>
+      {lines.length === 0 ? <p className="pe-meta">{t("pub.summary.empty")}</p> : (
+        <ul className="pe-summary-lines">
+          {lines.map((l) => <li key={l.ticketTypeId}><span>{l.name}</span><span>×{l.qty}</span><span>{formatJpy(l.yourPriceJpy * l.qty)}</span></li>)}
+        </ul>
+      )}
+      <p className="pe-summary-total"><span>{t("pub.total")}</span><strong>{formatJpy(total)}</strong></p>
+    </aside>
+  );
+}
+
 export default function EventRegister({ navigateTo, slug }) {
   const [ev, setEv] = useState(null);
   const [error, setError] = useState("");
@@ -242,6 +262,8 @@ export default function EventRegister({ navigateTo, slug }) {
       )}
       <ErrorBox message={error} />
 
+      <div className="pe-checkout">
+        <div className="pe-checkout-main">
       {step === "start" && (
         <section className="pe-box">
           <h2 tabIndex={-1} ref={headingRef}>{t("pub.start.title")}</h2>
@@ -358,6 +380,9 @@ export default function EventRegister({ navigateTo, slug }) {
           </div>
         </section>
       )}
+        </div>
+        {step !== "start" && <OrderSummary ev={ev} lines={lines} total={total} />}
+      </div>
     </EventShell>
   );
 }

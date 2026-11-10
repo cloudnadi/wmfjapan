@@ -27,6 +27,14 @@ Browser (React + Vite SPA, S3 + CloudFront)
 
 The pre-existing member area (NPO membership, AGM, one-time-code member login, "Registrations" for the original pipeline) is unchanged and still reachable; the public API accepts either an attendee ID token or the older member token.
 
+## Look and feel
+
+The site follows https://www.wmfjapan.org/: a single **light** theme (there is no dark mode or theme switch), white pages, a pale-mint (`#dbe8e6`) gradient header with bold grey navigation, plum (`#572f47` → near-black) hero bands, a green footer band, and a Proxima-Nova-style sans-serif (falls back to Helvetica/Arial; no web font is downloaded). Design tokens live at the top of `frontend/src/styles.css`; page layouts in `publicEvents.css`; header/footer/sign-in in `site.css`.
+
+Event-management layout: home hero with live counts and search/category filter, event cards with a calendar-style date tab and status badges, event pages with a plum header band and a sticky registration panel, and a three-step checkout (progress indicator + sticky order summary).
+
+Accessibility note: the organisation's brand green (`#009757`) is only 3.8:1 against white, so buttons, links and the footer use the next shade down (`#007a46`, 5.4:1); the brand shade is kept for large decoration only. The organisation's logo is not bundled (see placeholders below).
+
 ## Local development
 
 ```bash
