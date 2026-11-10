@@ -1,0 +1,140 @@
+name: Deploy to Preview Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to deploy (branch, tag, or SHA)
+        required: false
+        default: preview
+  push:
+    branches:
+      - preview
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-1' }}
+  TF_STATE_KEY_PREFIX: ${{ vars.TF_STATE_KEY_PREFIX || 'wmfjapan' }}
+  TF_IN_AUTOMATION: true
+  TERRAFORM_DIR: backend
+  FRONTEND_DIR: frontend
+
+concurrency:
+  group: deploy-preview
+
+jobs:
+  deploy:
+    name: Preview deploy
+    runs-on: ubuntu-latest
+    environment: preview
+    env:
+      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+      TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.15.8
+
+      # - name: Configure AWS credentials via OIDC role
+      #   if: ${{ env.AWS_ROLE_TO_ASSUME != '' }}
+      #   uses: aws-actions/configure-aws-credentials@v6
+      #   with:
+      #     role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+      #     aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS credentials via access keys
+        if: ${{ env.AWS_ROLE_TO_ASSUME == '' }}
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Write preview tfvars
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        env:
+          TFVARS_PREVIEW: ${{ secrets.TFVARS_PREVIEW }}
+        run: |
+          if [ -z "$TFVARS_PREVIEW" ]; then
+            echo "TFVARS_PREVIEW secret is required"
+            exit 1
+          fi
+          printf '%s\n' "$TFVARS_PREVIEW" > terraform.preview.tfvars
+
+      - name: Validate backend secrets
+        run: |
+          if [ -z "$TF_STATE_BUCKET" ]; then
+            echo "TF_STATE_BUCKET secret is required"
+            exit 1
+          fi
+
+      - name: Terraform init
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: |
+          terraform init -reconfigure \
+            -backend-config="bucket=$TF_STATE_BUCKET" \
+            -backend-config="key=apps/${{ env.TF_STATE_KEY_PREFIX }}/preview/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="encrypt=true"
+
+      - name: Terraform plan (preview)
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform plan -var-file=terraform.preview.tfvars
+
+      - name: Terraform apply (preview)
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform apply -auto-approve -var-file=terraform.preview.tfvars
+
+      - name: Capture Terraform outputs
+        id: tfout
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: |
+          echo "api_base_url=$(terraform output -raw api_base_url)" >> "$GITHUB_OUTPUT"
+          echo "cognito_user_pool_id=$(terraform output -raw cognito_user_pool_id)" >> "$GITHUB_OUTPUT"
+          echo "cognito_client_id=$(terraform output -raw cognito_client_id)" >> "$GITHUB_OUTPUT"
+          echo "cognito_region=$(terraform output -raw cognito_region)" >> "$GITHUB_OUTPUT"
+          echo "frontend_bucket=$(terraform output -raw s3_frontend_bucket_name)" >> "$GITHUB_OUTPUT"
+          echo "distribution_id=$(terraform output -raw cloudfront_distribution_id)" >> "$GITHUB_OUTPUT"
+
+      - name: Install frontend dependencies
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm ci
+
+      - name: Build frontend (preview mode)
+        working-directory: ${{ env.FRONTEND_DIR }}
+        env:
+          VITE_API_BASE_URL: ${{ steps.tfout.outputs.api_base_url }}
+          VITE_COGNITO_USER_POOL_ID: ${{ steps.tfout.outputs.cognito_user_pool_id }}
+          VITE_COGNITO_CLIENT_ID: ${{ steps.tfout.outputs.cognito_client_id }}
+          VITE_COGNITO_REGION: ${{ steps.tfout.outputs.cognito_region }}
+          VITE_EVENT_TYPE_ONAM: onam_2026
+          VITE_ONAM_MOCK: "false"
+        run: npm run build:preview
+
+      - name: Deploy frontend to S3
+        run: |
+          scripts/deploy_frontend.sh "${{ steps.tfout.outputs.frontend_bucket }}" frontend/dist
+
+      - name: Invalidate CloudFront cache
+        if: ${{ steps.tfout.outputs.distribution_id != '' && steps.tfout.outputs.distribution_id != 'null' }}
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.tfout.outputs.distribution_id }}" \
+            --paths '/*'

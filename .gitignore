@@ -1,0 +1,39 @@
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfvars
+terraform/tfplan
+*.tfstate
+*.tfstate.backup
+backend/terraform.tfstatecopy
+!backend/backend.*.hcl.example
+
+# Lambda build artifacts
+lambdas/dist/
+plugins/seat-selection/backend/dist/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+backend/.terraform
+.claude
+.vscode/
+.idea/
+*.swp
+
+# Secrets — never commit
+*.env
+.env*
+secrets.json
+.claude/settings.json
+.claude/settings.json
+backend/.terraform.lock.hcl

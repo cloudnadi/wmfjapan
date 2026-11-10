@@ -1,0 +1,531 @@
+[
+ {
+  "name": "no condition",
+  "cond": null,
+  "answers": {},
+  "expected": true
+ },
+ {
+  "name": "eq string match",
+  "cond": {
+   "all": [
+    {
+     "field": "dinner",
+     "op": "eq",
+     "value": "yes"
+    }
+   ]
+  },
+  "answers": {
+   "dinner": "yes"
+  },
+  "expected": true
+ },
+ {
+  "name": "eq string mismatch",
+  "cond": {
+   "all": [
+    {
+     "field": "dinner",
+     "op": "eq",
+     "value": "yes"
+    }
+   ]
+  },
+  "answers": {
+   "dinner": "no"
+  },
+  "expected": false
+ },
+ {
+  "name": "eq missing answer",
+  "cond": {
+   "all": [
+    {
+     "field": "dinner",
+     "op": "eq",
+     "value": "yes"
+    }
+   ]
+  },
+  "answers": {},
+  "expected": false
+ },
+ {
+  "name": "ne missing answer is true",
+  "cond": {
+   "all": [
+    {
+     "field": "dinner",
+     "op": "ne",
+     "value": "yes"
+    }
+   ]
+  },
+  "answers": {},
+  "expected": true
+ },
+ {
+  "name": "ne mismatch",
+  "cond": {
+   "all": [
+    {
+     "field": "dinner",
+     "op": "ne",
+     "value": "yes"
+    }
+   ]
+  },
+  "answers": {
+   "dinner": "no"
+  },
+  "expected": true
+ },
+ {
+  "name": "eq number vs string",
+  "cond": {
+   "all": [
+    {
+     "field": "n",
+     "op": "eq",
+     "value": 5
+    }
+   ]
+  },
+  "answers": {
+   "n": "5"
+  },
+  "expected": true
+ },
+ {
+  "name": "eq float integral",
+  "cond": {
+   "all": [
+    {
+     "field": "n",
+     "op": "eq",
+     "value": 5
+    }
+   ]
+  },
+  "answers": {
+   "n": 5.0
+  },
+  "expected": true
+ },
+ {
+  "name": "eq boolean",
+  "cond": {
+   "all": [
+    {
+     "field": "ok",
+     "op": "eq",
+     "value": true
+    }
+   ]
+  },
+  "answers": {
+   "ok": true
+  },
+  "expected": true
+ },
+ {
+  "name": "eq boolean false",
+  "cond": {
+   "all": [
+    {
+     "field": "ok",
+     "op": "eq",
+     "value": true
+    }
+   ]
+  },
+  "answers": {
+   "ok": false
+  },
+  "expected": false
+ },
+ {
+  "name": "eq list contains",
+  "cond": {
+   "all": [
+    {
+     "field": "tags",
+     "op": "eq",
+     "value": "a"
+    }
+   ]
+  },
+  "answers": {
+   "tags": [
+    "a",
+    "b"
+   ]
+  },
+  "expected": true
+ },
+ {
+  "name": "ne list contains",
+  "cond": {
+   "all": [
+    {
+     "field": "tags",
+     "op": "ne",
+     "value": "a"
+    }
+   ]
+  },
+  "answers": {
+   "tags": [
+    "a",
+    "b"
+   ]
+  },
+  "expected": false
+ },
+ {
+  "name": "in scalar",
+  "cond": {
+   "all": [
+    {
+     "field": "c",
+     "op": "in",
+     "value": [
+      "x",
+      "y"
+     ]
+    }
+   ]
+  },
+  "answers": {
+   "c": "y"
+  },
+  "expected": true
+ },
+ {
+  "name": "in scalar miss",
+  "cond": {
+   "all": [
+    {
+     "field": "c",
+     "op": "in",
+     "value": [
+      "x",
+      "y"
+     ]
+    }
+   ]
+  },
+  "answers": {
+   "c": "z"
+  },
+  "expected": false
+ },
+ {
+  "name": "in list intersect",
+  "cond": {
+   "all": [
+    {
+     "field": "c",
+     "op": "in",
+     "value": [
+      "x",
+      "y"
+     ]
+    }
+   ]
+  },
+  "answers": {
+   "c": [
+    "q",
+    "x"
+   ]
+  },
+  "expected": true
+ },
+ {
+  "name": "in empty",
+  "cond": {
+   "all": [
+    {
+     "field": "c",
+     "op": "in",
+     "value": [
+      "x"
+     ]
+    }
+   ]
+  },
+  "answers": {},
+  "expected": false
+ },
+ {
+  "name": "notEmpty text",
+  "cond": {
+   "all": [
+    {
+     "field": "t",
+     "op": "notEmpty"
+    }
+   ]
+  },
+  "answers": {
+   "t": "hi"
+  },
+  "expected": true
+ },
+ {
+  "name": "notEmpty blank",
+  "cond": {
+   "all": [
+    {
+     "field": "t",
+     "op": "notEmpty"
+    }
+   ]
+  },
+  "answers": {
+   "t": ""
+  },
+  "expected": false
+ },
+ {
+  "name": "notEmpty false checkbox",
+  "cond": {
+   "all": [
+    {
+     "field": "t",
+     "op": "notEmpty"
+    }
+   ]
+  },
+  "answers": {
+   "t": false
+  },
+  "expected": false
+ },
+ {
+  "name": "notEmpty true checkbox",
+  "cond": {
+   "all": [
+    {
+     "field": "t",
+     "op": "notEmpty"
+    }
+   ]
+  },
+  "answers": {
+   "t": true
+  },
+  "expected": true
+ },
+ {
+  "name": "notEmpty empty list",
+  "cond": {
+   "all": [
+    {
+     "field": "t",
+     "op": "notEmpty"
+    }
+   ]
+  },
+  "answers": {
+   "t": []
+  },
+  "expected": false
+ },
+ {
+  "name": "empty missing",
+  "cond": {
+   "all": [
+    {
+     "field": "t",
+     "op": "empty"
+    }
+   ]
+  },
+  "answers": {},
+  "expected": true
+ },
+ {
+  "name": "empty zero is not empty",
+  "cond": {
+   "all": [
+    {
+     "field": "t",
+     "op": "empty"
+    }
+   ]
+  },
+  "answers": {
+   "t": 0
+  },
+  "expected": false
+ },
+ {
+  "name": "gt",
+  "cond": {
+   "all": [
+    {
+     "field": "n",
+     "op": "gt",
+     "value": 3
+    }
+   ]
+  },
+  "answers": {
+   "n": 4
+  },
+  "expected": true
+ },
+ {
+  "name": "gt equal",
+  "cond": {
+   "all": [
+    {
+     "field": "n",
+     "op": "gt",
+     "value": 3
+    }
+   ]
+  },
+  "answers": {
+   "n": 3
+  },
+  "expected": false
+ },
+ {
+  "name": "lt string number",
+  "cond": {
+   "all": [
+    {
+     "field": "n",
+     "op": "lt",
+     "value": 3
+    }
+   ]
+  },
+  "answers": {
+   "n": "2"
+  },
+  "expected": true
+ },
+ {
+  "name": "gt non numeric",
+  "cond": {
+   "all": [
+    {
+     "field": "n",
+     "op": "gt",
+     "value": 3
+    }
+   ]
+  },
+  "answers": {
+   "n": "abc"
+  },
+  "expected": false
+ },
+ {
+  "name": "gt missing",
+  "cond": {
+   "all": [
+    {
+     "field": "n",
+     "op": "gt",
+     "value": 3
+    }
+   ]
+  },
+  "answers": {},
+  "expected": false
+ },
+ {
+  "name": "all both",
+  "cond": {
+   "all": [
+    {
+     "field": "a",
+     "op": "eq",
+     "value": "1"
+    },
+    {
+     "field": "b",
+     "op": "eq",
+     "value": "2"
+    }
+   ]
+  },
+  "answers": {
+   "a": "1",
+   "b": "2"
+  },
+  "expected": true
+ },
+ {
+  "name": "all one fails",
+  "cond": {
+   "all": [
+    {
+     "field": "a",
+     "op": "eq",
+     "value": "1"
+    },
+    {
+     "field": "b",
+     "op": "eq",
+     "value": "2"
+    }
+   ]
+  },
+  "answers": {
+   "a": "1",
+   "b": "3"
+  },
+  "expected": false
+ },
+ {
+  "name": "any one",
+  "cond": {
+   "any": [
+    {
+     "field": "a",
+     "op": "eq",
+     "value": "1"
+    },
+    {
+     "field": "b",
+     "op": "eq",
+     "value": "2"
+    }
+   ]
+  },
+  "answers": {
+   "a": "0",
+   "b": "2"
+  },
+  "expected": true
+ },
+ {
+  "name": "any none",
+  "cond": {
+   "any": [
+    {
+     "field": "a",
+     "op": "eq",
+     "value": "1"
+    },
+    {
+     "field": "b",
+     "op": "eq",
+     "value": "2"
+    }
+   ]
+  },
+  "answers": {
+   "a": "0",
+   "b": "0"
+  },
+  "expected": false
+ }
+]

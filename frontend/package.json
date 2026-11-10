@@ -1,0 +1,27 @@
+{
+  "name": "wmfjapan-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:preview": "vite build --mode preview",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1106.0",
+    "jsqr": "^1.4.0",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.8"
+  },
+  "allowScripts": {
+    "fsevents@2.3.3": true,
+    "esbuild": true
+  }
+}

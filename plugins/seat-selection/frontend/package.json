@@ -1,0 +1,11 @@
+{
+  "name": "seat-selection-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Presentational, prop-driven React components for a theater-style seat map (registrant picker + admin management screen). No network or auth code of its own — a host app supplies its own fetch functions as props.",
+  "type": "module",
+  "main": "index.js",
+  "peerDependencies": {
+    "react": ">=18"
+  }
+}
