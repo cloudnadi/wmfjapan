@@ -1,4 +1,6 @@
-# WMF Japan Event Registration
+# WMF Japan Events (wmfevents.cloudnadi.com)
+
+Event registration site for [WMF Japan](https://www.wmfjapan.org/), a generic front end for the event platform in this repository. Events, tickets, forms, availability and per-event features come from the platform; attendee sign-in uses Amazon Cognito and guests can register without an account. Start with [docs/WMF_EVENTS_SITE.md](docs/WMF_EVENTS_SITE.md).
 
 This project includes:
 
@@ -9,6 +11,8 @@ This project includes:
 
 ## Documentation
 
+- [docs/WMF_EVENTS_SITE.md](docs/WMF_EVENTS_SITE.md) — **events site**: architecture, Cognito setup, guest checkout, per-event features, deployment, migration/rollback
+- [EVENT_PLATFORM.md](EVENT_PLATFORM.md) — event platform data model and phases; [docs/EVENT_ADMIN_GUIDE.md](docs/EVENT_ADMIN_GUIDE.md) — admin how-to
 - [MULTI_EVENT_ARCHITECTURE.md](MULTI_EVENT_ARCHITECTURE.md) — multi-event data model, tables, and API routes
 - [ADMIN_DASHBOARD_SETUP.md](ADMIN_DASHBOARD_SETUP.md) — Cognito admin auth, dashboard tabs (Registrations / Events / Users / Partners)
 - [MEMBER_LOGIN_GATE.md](MEMBER_LOGIN_GATE.md) — members master list, login gate, and CSV import
@@ -23,21 +27,17 @@ The frontend has been migrated from static HTML/JS to a React application.
 
 ```bash
 cd frontend
-npm install
+npm ci
+cp .env.example .env.local   # then fill in the placeholders
 npm run dev
+npm test                     # unit/component tests (Vitest)
 ```
 
-### Configure API base URL
+### Configure the API and sign-in
 
-The React app reads the API base URL from `VITE_API_BASE_URL`.
-
-Create `frontend/.env`:
-
-```bash
-VITE_API_BASE_URL=https://<your-api-id>.execute-api.<region>.amazonaws.com/prod
-```
-
-If `VITE_API_BASE_URL` is not set, it falls back to the existing API URL in `frontend/src/api.js`.
+The app reads the public API base URL from `VITE_API_BASE_URL` and the attendee Cognito settings from `VITE_AUTH_*`
+(see [`frontend/.env.example`](frontend/.env.example) and [docs/WMF_EVENTS_SITE.md](docs/WMF_EVENTS_SITE.md)). There is no
+built-in fallback URL: an unset `VITE_API_BASE_URL` means API calls fail visibly instead of hitting some other stack.
 
 ### Build for S3 static hosting
 

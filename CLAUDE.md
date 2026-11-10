@@ -1,12 +1,13 @@
-# CLAUDE.md — WMF Japan (wmfjapan.cloudnadi.com)
+# CLAUDE.md — WMF Japan Events (wmfevents.cloudnadi.com)
 
-Community NPO site: membership (join/renew), passwordless member login, Onam 2026 event registration, seat plugins, AGM, admin dashboard.
-Status of the "generic event platform" initiative: **Phases 0-6 done (audit, data model + migration, admin event management, form builder, public pages + registration flow, admin registration management, hardening/tests/CI/docs); awaiting review and a preview-environment deploy.** Run tests with `scripts/run_tests.sh`; admin guide in `docs/EVENT_ADMIN_GUIDE.md`. Phase 4 decisions: card (Square) + bank/PayPay manual; holds 30 min card / 7 days manual; waitlist promotion manual; member edit/cancel until registration close time; paid cancellations become refund_pending See `EVENT_PLATFORM.md`. Decisions: Onam stays on its legacy flow (mirrored only); new `EventManagers` Cognito group + `Admins` = super admin, legacy admin routes unchanged; `t()` helper for i18n; Square/PayPay/manual payments as today; refunds as today; guests allowed by default (per-event toggle); members-only = valid now AND covers renewal year; early-bird applies to NPO members only Work is on branch `feat/events`, never directly on `main`.
+Event registration site for WMF Japan (org site: https://www.wmfjapan.org/). A generic front end for the in-repo **event platform**: events/tickets/forms/availability/per-event features come from the platform API; attendees sign in with their own Amazon Cognito user pool (email + social via Hosted UI/PKCE) or check out as guests. **Read `docs/WMF_EVENTS_SITE.md` first.** Platform data model: `EVENT_PLATFORM.md`; admin guide: `docs/EVENT_ADMIN_GUIDE.md`. Run tests with `scripts/run_tests.sh` (backend) and `cd frontend && npm test` (frontend).
+
+Key decisions: nothing event-specific is hard-coded (the former Onam page/route/assets are gone; an Onam event is just a platform event); per-event features are `event.capabilities` (defaults in `lambdas/event_capabilities.py`, mirrored in `frontend/src/eventModel.js`; enforced server-side); attendee accounts use a **separate** Cognito pool (`backend/cognito_attendees.tf`) — never put attendees in the admin pool; org-specific text/URLs live in `frontend/src/siteConfig.js`; strings go through `t()` (`en.json`, `ja.json` falls back to English); no secrets or deployment values are committed (`backend/*.tfvars` and `backend.*.hcl` are git-ignored, use the `*.example` templates). Legacy (original-pipeline) Onam-shaped Lambdas/admin tabs remain for existing records and are not reachable from public pages. Admin: `EventManagers` group + `Admins` = super admin; legacy admin routes unchanged. Phase 4 payment decisions: card (Square) + bank/PayPay manual; holds 30 min card / 7 days manual; waitlist promotion manual; member edit/cancel until registration close; paid cancellations become refund_pending; guests allowed by default (per-event toggle); members-only = valid now AND covers renewal year; early-bird applies to NPO members only. Work happens on the branch named in the task (currently `develop`), never directly on `main`.
 
 ## Stack
 | Layer | Tech |
 |---|---|
-| Frontend | React 18 + Vite 5, plain JS/JSX, one global `styles.css`. **No react-router, no TypeScript, no i18n library.** Routing is a hand-rolled `currentPath` switch in `frontend/src/App.jsx` (pushState + lazy chunks). Only deps: `react`, `qrcode`, Cognito SDK. |
+| Frontend | React 18 + Vite 5, plain JS/JSX, one global `styles.css` (+ `publicEvents.css`, `site.css`). **No react-router, no TypeScript, no i18n library.** Routing is a hand-rolled `currentPath` switch in `frontend/src/App.jsx` (pushState + lazy chunks). Deps: `react`, `qrcode`, Cognito SDK, `jsqr`; dev: Vitest + Testing Library. |
 | Backend | Python AWS Lambdas (`lambdas/<name>/handler.py`) behind API Gateway REST (Terraform), boto3 only. No framework. |
 | DB | DynamoDB, on-demand, PITR. Tables in `backend/dynamodb.tf` (+ plugin terraform). |
 | Admin auth | Cognito user pool, groups `Admins` (super admin) and `EventManagers` (new; only enforced by the event-platform Lambda via `lambdas/admin_roles.py`), API Gateway Cognito authorizer on `/admin/*` (`api_gateway_admin.tf`). **Lambdas never inspect groups/claims** — any pool user is a full admin. |
@@ -19,7 +20,7 @@ Status of the "generic event platform" initiative: **Phases 0-6 done (audit, dat
 - `backend/` Terraform (API routes split across `api_gateway*.tf`, `lambda.tf` ~1.5k lines).
 - `lambdas/` Lambdas + shared modules. **Shared modules are copy-pasted per Lambda** (`onam_pricing.py` ×3, `npo_membership.py` ×6, `checkin_pdf.py` ×2) and bundled by `scripts/package_lambdas.sh`. Edit all copies or consolidate deliberately.
 - `plugins/seat-selection`, `plugins/seat-upgrade` — self-contained feature plugins (frontend + lambdas + terraform), imported via `@plugins/*` alias.
-- `frontend/src/` — `AdminDashboard.jsx` (6.4k lines, all admin tabs), `OnamRegistration.jsx`, `MyRegistrations.jsx`, `api.js` (all API calls), `memberShared.jsx`.
+- `frontend/src/` — `AdminDashboard.jsx` (6.4k lines, all admin tabs), `MyRegistrations.jsx`, `api.js` (all API calls), `memberShared.jsx`.
 - `tests/` — stdlib `unittest`, run `pip install boto3 && python3 -m unittest discover -s tests`.
 - Docs: `MULTI_EVENT_ARCHITECTURE.md`, `ADMIN_DASHBOARD_SETUP.md`, `MEMBER_LOGIN_GATE.md`, `SEAT_SELECTION.md`.
 
@@ -32,7 +33,7 @@ Status of the "generic event platform" initiative: **Phases 0-6 done (audit, dat
 
 ## How event registration works today
 1. `RegistrationLogin` → `/auth/request-otp` → `/auth/verify-otp` → token in localStorage.
-2. `OnamRegistration.jsx` (fixed route `/onam/register`) → `POST /events/{eventType}/register`.
+2. (Original pipeline, no longer reachable from the public site: the `OnamRegistration.jsx` page and `/onam/register` route were removed.) New events register through `/events/{slug}/register` → `POST /public/events/{slug}/register`.
 3. `register/handler.py` loads the event, then **branches to `handle_onam_registration`** for the Onam event: server-side re-pricing (`onam_pricing`), NPO discount tiers, optional join/renew, capacity check, entry-slot/allocation reservation, SES email + QR pass, admin notification. Only generic part: event lookup/status/closing date.
 4. Self-service: `my_registrations` Lambda (list/update/delete, check-in, slot, celebrity-dinner). Admin: `manage_registrations` (CRUD, re-pricing), `export_csv`, `checkin_pdf`, `manage_reconciliation`.
 
@@ -54,7 +55,7 @@ Tabs in `AdminDashboard.jsx`: Registrations, Events, Users, Partners, plus plugi
 10. Members statuses: no canonical "active/expired/none" field; derived from date ranges + `npoMembershipActive` flag (can disagree).
 
 ## Test baseline (before any change)
-`python3 -m unittest discover -s tests` → 165 run, 8 failures + 3 errors. **Each file passes when run alone** except `test_checked_in_locks.py` (import error) and `test_member_announcements.py` (import error); the `test_npo_orders` failures appear only in the combined run (cross-module `sys.path`/`importlib` collisions). Run files individually until the harness is fixed. No frontend tests exist; `npm run build` is the frontend check.
+`python3 -m unittest discover -s tests` → 165 run, 8 failures + 3 errors. **Each file passes when run alone** except `test_checked_in_locks.py` (import error) and `test_member_announcements.py` (import error); the `test_npo_orders` failures appear only in the combined run (cross-module `sys.path`/`importlib` collisions). `scripts/run_tests.sh` runs each file in its own process (all pass). Frontend: `cd frontend && npm test` (Vitest) and `npm run build`.
 
 ## Conventions to follow
 - Match existing style: Lambda `respond()`/`cors_headers()` helpers, env-var config wired in `lambda.tf`, `parse_json_body`, server-side authoritative pricing (never trust client amounts), idempotent conditional writes for payment state.
