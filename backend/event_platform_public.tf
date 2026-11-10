@@ -12,6 +12,7 @@ locals {
     "event_mailer.py"        = "${path.module}/../lambdas/event_mailer.py"
     "form_engine.py"         = "${path.module}/../lambdas/form_engine.py"
     "event_members.py"       = "${path.module}/../lambdas/event_members.py"
+    "event_capabilities.py"  = "${path.module}/../lambdas/event_capabilities.py"
   }
 
   event_platform_runtime_env = merge(local.lambda_env, {
@@ -64,6 +65,12 @@ data "archive_file" "event_platform_public" {
   source {
     content  = file("${path.module}/../lambdas/membership/npo_membership.py")
     filename = "npo_membership.py"
+  }
+
+  # Verifies attendee ID tokens (Cognito JWTs) with the standard library only.
+  source {
+    content  = file("${path.module}/../lambdas/cognito_jwt.py")
+    filename = "cognito_jwt.py"
   }
 
   source {
@@ -126,7 +133,10 @@ resource "aws_lambda_function" "event_platform_public" {
 
   environment {
     variables = merge(local.event_platform_runtime_env, {
-      OTP_TOKEN_SECRET = random_password.otp_token_secret.result
+      OTP_TOKEN_SECRET        = random_password.otp_token_secret.result
+      ATTENDEE_USER_POOL_ID   = aws_cognito_user_pool.attendees.id
+      ATTENDEE_APP_CLIENT_ID  = aws_cognito_user_pool_client.attendees.id
+      ATTENDEE_COGNITO_REGION = var.aws_region
     })
   }
 

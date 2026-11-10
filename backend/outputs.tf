@@ -297,3 +297,25 @@ output "audit_log_table_name" {
   value       = aws_dynamodb_table.audit_log.name
   description = "Event platform: admin audit log"
 }
+
+# ── Attendee accounts (Cognito) — public values, used to build the frontend ──
+
+output "attendee_user_pool_id" {
+  description = "Attendee Cognito user pool ID (frontend VITE_AUTH_USER_POOL_ID)"
+  value       = aws_cognito_user_pool.attendees.id
+}
+
+output "attendee_app_client_id" {
+  description = "Attendee Cognito app client ID (frontend VITE_AUTH_CLIENT_ID)"
+  value       = aws_cognito_user_pool_client.attendees.id
+}
+
+output "attendee_hosted_ui_domain" {
+  description = "Hosted UI / OAuth domain without scheme (frontend VITE_AUTH_COGNITO_DOMAIN)"
+  value       = "${aws_cognito_user_pool_domain.attendees.domain}.auth.${var.aws_region}.amazoncognito.com"
+}
+
+output "attendee_social_providers" {
+  description = "Comma-separated social provider names enabled on the attendee client (frontend VITE_AUTH_SOCIAL_PROVIDERS)"
+  value       = join(",", local.attendee_social_provider_names)
+}

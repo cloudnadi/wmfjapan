@@ -283,3 +283,34 @@ variable "square_events_webhook_url" {
   type        = string
   default     = ""
 }
+
+# ── Attendee accounts (Cognito) ──────────────────────────────────────────────
+
+variable "attendee_cognito_domain_prefix" {
+  description = "Hosted UI domain prefix for the attendee user pool (globally unique per region). Empty = <project>-<env>-attendees."
+  type        = string
+  default     = ""
+}
+
+variable "attendee_extra_origins" {
+  description = "Extra site origins allowed for sign-in redirects, e.g. [\"http://localhost:5173\"] for local development. Never add localhost in production."
+  type        = list(string)
+  default     = []
+}
+
+variable "attendee_social_providers" {
+  description = "Social identity providers to enable, keyed by the Cognito provider name (Google, Facebook, LoginWithAmazon). Example: { Google = { provider_type = \"Google\", client_id = \"...apps.googleusercontent.com\" } }"
+  type = map(object({
+    provider_type    = string
+    client_id        = string
+    authorize_scopes = optional(string)
+  }))
+  default = {}
+}
+
+variable "attendee_social_provider_secrets" {
+  description = "OAuth client secrets for attendee_social_providers, keyed by the same provider names. Stored in Terraform state: keep the state bucket private and supply this via CI secrets."
+  type        = map(string)
+  default     = {}
+  sensitive   = true
+}

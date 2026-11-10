@@ -117,6 +117,10 @@ jobs:
           echo "cognito_user_pool_id=$(terraform output -raw cognito_user_pool_id)" >> "$GITHUB_OUTPUT"
           echo "cognito_client_id=$(terraform output -raw cognito_client_id)" >> "$GITHUB_OUTPUT"
           echo "cognito_region=$(terraform output -raw cognito_region)" >> "$GITHUB_OUTPUT"
+          echo "attendee_user_pool_id=$(terraform output -raw attendee_user_pool_id)" >> "$GITHUB_OUTPUT"
+          echo "attendee_app_client_id=$(terraform output -raw attendee_app_client_id)" >> "$GITHUB_OUTPUT"
+          echo "attendee_hosted_ui_domain=$(terraform output -raw attendee_hosted_ui_domain)" >> "$GITHUB_OUTPUT"
+          echo "attendee_social_providers=$(terraform output -raw attendee_social_providers)" >> "$GITHUB_OUTPUT"
           echo "frontend_bucket=$(terraform output -raw s3_frontend_bucket_name)" >> "$GITHUB_OUTPUT"
           echo "distribution_id=$(terraform output -raw cloudfront_distribution_id)" >> "$GITHUB_OUTPUT"
 
@@ -131,8 +135,12 @@ jobs:
           VITE_COGNITO_USER_POOL_ID: ${{ steps.tfout.outputs.cognito_user_pool_id }}
           VITE_COGNITO_CLIENT_ID: ${{ steps.tfout.outputs.cognito_client_id }}
           VITE_COGNITO_REGION: ${{ steps.tfout.outputs.cognito_region }}
-          VITE_EVENT_TYPE_ONAM: onam_2026
-          VITE_ONAM_MOCK: "false"
+          VITE_SITE_URL: https://wmfevents.cloudnadi.com
+          VITE_AUTH_REGION: ${{ steps.tfout.outputs.cognito_region }}
+          VITE_AUTH_USER_POOL_ID: ${{ steps.tfout.outputs.attendee_user_pool_id }}
+          VITE_AUTH_CLIENT_ID: ${{ steps.tfout.outputs.attendee_app_client_id }}
+          VITE_AUTH_COGNITO_DOMAIN: ${{ steps.tfout.outputs.attendee_hosted_ui_domain }}
+          VITE_AUTH_SOCIAL_PROVIDERS: ${{ steps.tfout.outputs.attendee_social_providers }}
         run: npm run build
 
       - name: Deploy frontend to S3
